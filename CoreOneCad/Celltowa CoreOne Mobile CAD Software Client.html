@@ -436,6 +436,10 @@
     border: 1px solid var(--border);
     font-size: 10px;
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
   }
   .unit-card-assignment:hover {
     border-color: var(--accent);
@@ -443,10 +447,13 @@
   .unit-card-assignment .assign-call {
     color: var(--accent);
     font-weight: 700;
-    margin-right: 6px;
+    flex-shrink: 0;
   }
   .unit-card-assignment .assign-loc {
     color: var(--muted);
+    display: block;
+    flex: 1;
+    min-width: 0;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -839,6 +846,7 @@
     </div>
     <div id="cli-assist-bar">Syntax Info: Enter a valid command token to reveal helper paths...</div>
     <div id="cli-type-dropdown" style="display:none;position:absolute;left:92px;right:16px;top:100%;background:#0d1117;border:1px solid var(--accent);border-radius:6px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.7);"></div>
+    <div id="cli-location-dropdown" style="display:none;position:absolute;left:92px;right:16px;top:100%;background:#0d1117;border:1px solid var(--accent);border-radius:6px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.7);"></div>
   </div>
 
   <div id="main">
@@ -990,7 +998,35 @@
   </div>
 </div>
 
+<script src="assets/data/locations.js"></script>
+<script src="js/locationSearch.js"></script>
 <script>
+// Fail loudly if the location data/search files didn't load (bad relative
+// path, file moved, etc.) instead of leaving the dispatcher with a Location
+// search box that silently returns nothing.
+if (typeof LOCATIONS === 'undefined' || typeof locationSearch === 'undefined') {
+  console.error('CoreOne: locations.js or locationSearch.js failed to load — check assets/data/ and js/ paths relative to this file.');
+}
+
+// Selecting a location from the dropdown updates the visible text input
+// AND writes the full structured object onto the active call as
+// call.locationObj, via the same saveCallProfileField path that manual
+// typing uses (so the narrative-log diff entry still fires correctly).
+// call.location remains the formatted string for every existing reader
+// that hasn't been migrated to locationObj yet (see locationObj comment
+// above saveCallProfileField for the staleness rule when a dispatcher
+// types over a previously-selected location).
+window.onLocationSelected = function(loc) {
+  var active = document.activeElement;
+  var input = (active && active.id && active.id.indexOf('call-location-input-') === 0)
+    ? active
+    : document.querySelector('input[id^="call-location-input-"]');
+  if (!input) return;
+  var label = formatLocationLabel(loc);
+  input.value = label;
+  saveCallProfileField('location', label, loc);
+};
+
 const STATUS_STYLES = {
   'available': 's-available',
   'available in quarters': 's-availablequarters',
@@ -1460,6 +1496,7 @@ function processLiveCommandAssist() {
   if (!activeVal.trim()) {
     assistEl.innerHTML = (dualStackPrefix || '') + "Commands: <span class='assist-highlight'>ON</span> | <span class='assist-highlight'>OFF</span> | <span class='assist-highlight'>FI</span> | <span class='assist-highlight'>II</span> | <span class='assist-highlight'>TS</span> | <span class='assist-highlight'>DE</span> | <span class='assist-highlight'>OS</span> | <span class='assist-highlight'>CM</span> | <span class='assist-highlight'>US</span> | <span class='assist-highlight'>EU</span> | <span class='assist-highlight'>IR</span> | <span class='assist-highlight'>GU</span> | <span class='assist-highlight'>LOC</span> | <span class='assist-highlight'>C</span> | <span class='assist-highlight'>CLOSED</span> | <span class='assist-highlight'>BOLO</span> | <span class='assist-highlight'>CMDS</span> (Help) | <span class='assist-highlight'>TRAINING</span> (Demo Roster)";
     hideCliTypeDropdown();
+    hideCliLocationDropdown();
     return;
   }
 
@@ -1490,6 +1527,9 @@ function processLiveCommandAssist() {
 
   if (cmd !== 'FI' && cmd !== 'FIELD' && cmd !== 'FIELDINITIATE' && cmd !== 'II') {
     hideCliTypeDropdown();
+  }
+  if (cmd !== 'II') {
+    hideCliLocationDropdown();
   }
 
   if (cmd === 'TRAINING') {
@@ -1713,6 +1753,7 @@ function processLiveCommandAssist() {
     if (tokens.length === 1 || (tokens.length === 2 && tokens[1] === "")) {
       assistEl.innerHTML = dualStackPrefix + "Syntax: II <span class='assist-highlight'>[Event Type]</span> / [Location] / [Comments] — Injects a new pending incident directly.";
       showCliTypeDropdown('');
+      hideCliLocationDropdown();
     } else {
       const rest = tokens.slice(1).join(' ');
       const restHasSlash = rest.indexOf('/') !== -1;
@@ -1724,15 +1765,27 @@ function processLiveCommandAssist() {
       const iiEvPending = iiCliEl ? (iiCliEl.dataset['pendingType_' + segIdx] || iiCliEl.dataset.pendingType || '') : '';
       const iiEvMatch = !iiEvPending ? FIRE_DISPATCH_LIST.find(function(d){ return d.code === ev.toUpperCase() || d.name === ev; }) : null;
       const iiEvDisplay = iiEvPending ? iiEvPending : (iiEvMatch ? iiEvMatch.name + ' (' + iiEvMatch.code + ')' : ev);
+      const iiLocPending = iiCliEl ? (iiCliEl.dataset['pendingLocation_' + segIdx] || iiCliEl.dataset.pendingLocation || '') : '';
+      const iiLocDisplay = iiLocPending ? iiLocPending : loc;
       let display = `Action: <span class='assist-valid'>[INITIATE INCIDENT]</span> | Event: <span style='color:var(--accent)'>${iiEvDisplay || '...'}</span>`;
-      display += ` | Location: ${loc !== undefined ? "<span style='color:var(--accent)'>"+loc+"</span>" : "<span class='assist-highlight'>[Required, use / to separate]</span>"}`;
+      display += ` | Location: ${iiLocDisplay !== undefined ? "<span style='color:var(--accent)'>"+iiLocDisplay+"</span>" : "<span class='assist-highlight'>[Required, use / to separate]</span>"}`;
       if (com !== undefined) display += ` | Comments: <i style='color:var(--amber)'>${com}</i>`;
       if (loc === undefined) display += ` <span style='opacity:.6'>(format: II [event] / [location] / [comments])</span>`;
       assistEl.innerHTML = dualStackPrefix + display;
       if (!restHasSlash) {
         showCliTypeDropdown(ev);
+        hideCliLocationDropdown();
       } else {
         hideCliTypeDropdown();
+        // In the location segment (1st slash typed, 2nd slash not yet typed):
+        // show the same location search dropdown the call profile's Location
+        // field uses, so II picks up a real locationObj instead of free text.
+        const locSegHasSlash = rest.slice(rest.indexOf('/') + 1).indexOf('/') !== -1;
+        if (!locSegHasSlash) {
+          showCliLocationDropdown(loc || '');
+        } else {
+          hideCliLocationDropdown();
+        }
       }
     }
     return;
@@ -1979,7 +2032,7 @@ document.getElementById('cli-input').addEventListener('keydown', function(e) {
     return;
   }
 
-  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === 'Tab' || e.key === 'Escape') && cliTypeKey(e)) {
+  if ((e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter' || e.key === 'Tab' || e.key === 'Escape') && (cliTypeKey(e) || cliLocationKey(e))) {
     return;
   }
 
@@ -2390,21 +2443,44 @@ function executeSingleCommand(val, segIdx) {
       }
       if (!iiPriority) iiPriority = '2';
 
+      // Prefer the structured location from a dropdown selection. Only trust
+      // it if the location text wasn't edited again after selecting — same
+      // staleness rule saveCallProfileField uses for the call profile's
+      // Location field — otherwise a dispatcher who picks a result and then
+      // types over it would get a locationObj that points at the wrong place.
+      var iiPendingLocation = iiInputEl ? (iiInputEl.dataset['pendingLocation_' + segIdx] || iiInputEl.dataset.pendingLocation || '') : '';
+      var iiPendingLocationObjRaw = iiInputEl ? (iiInputEl.dataset['pendingLocationObj_' + segIdx] || iiInputEl.dataset.pendingLocationObj || '') : '';
+      var iiLocationObj = null;
+      if (iiPendingLocationObjRaw && iiPendingLocation && iiPendingLocation === location) {
+        try { iiLocationObj = JSON.parse(iiPendingLocationObjRaw); } catch (e) { iiLocationObj = null; }
+      }
+      // location/iiPendingLocation above are the sanitized, '/'-safe text
+      // that appeared in the command bar (slashes swapped for '-' so they
+      // can't be mistaken for segment delimiters). Once a real locationObj
+      // has resolved, re-derive the saved location string from it instead,
+      // so the call stores the true label (e.g. "24/7 Supermarket") rather
+      // than the sanitized one.
+      var iiSavedLocation = iiLocationObj ? formatLocationLabel(iiLocationObj) : location;
+
       if (iiInputEl) { 
         iiInputEl.dataset['pendingType_' + segIdx] = '';
         iiInputEl.dataset['pendingDept_' + segIdx] = '';
         iiInputEl.dataset['pendingPriority_' + segIdx] = '';
+        iiInputEl.dataset['pendingLocation_' + segIdx] = '';
+        iiInputEl.dataset['pendingLocationObj_' + segIdx] = '';
         iiInputEl.dataset.pendingType = '';
         iiInputEl.dataset.pendingDept = '';
         iiInputEl.dataset.pendingPriority = '';
+        iiInputEl.dataset.pendingLocation = '';
+        iiInputEl.dataset.pendingLocationObj = '';
       }
       const newCall = {
-        id: newId, type: eventType, location: location, priority: iiPriority, source: '911',
+        id: newId, type: eventType, location: iiSavedLocation, locationObj: iiLocationObj, priority: iiPriority, source: '911',
         dept: iiDept, comments: commentLog, assigned: [], vehicles: [], suspects: []
       };
       state.calls.push(newCall);
       state.selectedCallId = newId; state.activeProfileView = 'CALL';
-      toast(`📟 Incident #${newId} initiated — ${eventType} @ ${location}`);
+      toast(`📟 Incident #${newId} initiated — ${eventType} @ ${iiSavedLocation}`);
       switchTab('calls', document.querySelector('.nav-tab[onclick*="calls"]'));
       processLiveCommandAssist(); renderCAD(); return;
     }
@@ -3089,6 +3165,10 @@ function buildMapIncidents() {
       id: c.id,
       type: c.type,
       location: c.location,
+      // Additive: CoreOneMap.html doesn't read this yet (it only knows
+      // {code, x, y} per postal today), but sending it now means step 8
+      // doesn't need another pass through this function later.
+      postal: (c.locationObj && c.locationObj.postal) || null,
       dept: c.dept,
       emoji: getMapIncidentEmoji(c),
       assignedUnits: (c.assigned || []).map(function(unitId) {
@@ -3233,7 +3313,7 @@ function renderCAD() {
           if (u.isComposite) {
             const groupRow2 = `<div class="unit-card-row2">👥 ${u.memberCallsigns.join(' / ')}</div>`;
             return `
-              <div class="unit-card ${isSelected}" style="border-left:3px solid var(--accent);" onclick="openUnitProfile('${u.memberIds[0]}')" ondblclick="mapItFromCardDblClick('${(loc || '').replace(/'/g, "\\'")}')">
+              <div class="unit-card ${isSelected}" style="border-left:3px solid var(--accent);" onclick="openUnitProfile('${u.memberIds[0]}')" ondblclick="mapItFromCardDblClick('${u.assignedCall || ''}')">
                 <div class="unit-card-bar dept-${u.dept.toLowerCase()}"></div>
                 <div class="unit-card-body">
                   <div class="unit-card-row1">
@@ -3249,7 +3329,7 @@ function renderCAD() {
           }
 
           return `
-            <div class="unit-card ${isSelected}" draggable="true" ondragstart="handleDragStart(event, '${u.id}')" onclick="openUnitProfile('${u.id}')" ondblclick="mapItFromCardDblClick('${(loc || '').replace(/'/g, "\\'")}')">
+            <div class="unit-card ${isSelected}" draggable="true" ondragstart="handleDragStart(event, '${u.id}')" onclick="openUnitProfile('${u.id}')" ondblclick="mapItFromCardDblClick('${u.assignedCall || ''}')">
               <div class="unit-card-bar dept-${u.dept.toLowerCase()}"></div>
               <div class="unit-card-body">
                 <div class="unit-card-row1">
@@ -3386,7 +3466,7 @@ return `
   <div class="call-card-wrapper">
     <div class="call-card ${isSelected} ${hasExpandedUnit ? 'unit-menu-open' : ''}"
      onclick="openCallProfile('${c.id}')"
-     ondblclick="mapItFromCardDblClick('${c.location}')"
+     ondblclick="mapItFromCardDblClick('${c.id}')"
       ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move'; this.classList.add('drag-over');"
       ondragleave="this.classList.remove('drag-over');"
       ondrop="this.classList.remove('drag-over'); handleDrop(event, '${c.id}');">
@@ -3644,7 +3724,11 @@ function historyMatchesQuery(call, query) {
   if (!q) return true;
   const haystack = [
     call.id, call.type, call.location, call.priority, call.source,
-    call.disposition, DISPOSITIONS[call.disposition], call.closedBy, call.comments
+    call.disposition, DISPOSITIONS[call.disposition], call.closedBy, call.comments,
+    // call.location (the formatted label) already folds in postal/road/
+    // landmark-or-cross-street/area, so only the region needs adding here —
+    // it's the one field from locationObj that never makes it into the label.
+    call.locationObj && call.locationObj.region
   ].filter(Boolean).join(' ').toLowerCase();
   return haystack.includes(q);
 }
@@ -3911,13 +3995,22 @@ function dispatchProfileSplitViewRenderer() {
         <div class="form-group"><label style="margin-bottom:5px;">Priority</label><select id="priority-select" tabindex="-1" onchange="saveCallProfileField('priority', this.value)"><option value="1" ${call.priority==='1'?'selected':''}>Priority 1 — Emergency</option><option value="2" ${call.priority==='2'?'selected':''}>Priority 2 — Urgent</option><option value="3" ${call.priority==='3'?'selected':''||!call.priority}>Priority 3 — Routine</option></select></div>
         <div class="form-group"><label style="margin-bottom:5px;">Origin</label><select tabindex="-1" onchange="saveCallProfileField('source', this.value)"><option value="911" ${call.source==='911'?'selected':''}>911 Line Entry</option><option value="Field" ${call.source==='Field'?'selected':''}>Officer Self-Initiated</option></select></div>
       </div>
-      <div class="form-group" style="margin-top:12px;">
+      <div class="form-group" style="margin-top:12px;position:relative;">
         <label style="margin-bottom:5px;display:block;">Location / Intersection Grid Coordinate</label>
         <div style="display:flex;gap:8px;align-items:center;">
-          <input id="call-location-input-${call.id}" type="text" tabindex="2" placeholder="e.g. Legion Square" value="${call.location}" onchange="saveCallProfileField('location', this.value)" style="flex:1;margin-bottom:0;">
+          <input id="call-location-input-${call.id}" type="text" tabindex="2" autocomplete="off" placeholder="e.g. Legion Square, or search by postal/road/landmark"
+            value="${call.location}"
+            onchange="saveCallProfileField('location', this.value)"
+            oninput="locationTypeSearch(this)"
+            onkeydown="locationKey(event)"
+            onfocus="locationTypeSearch(this)"
+            onblur="setTimeout(function(){ var d=document.getElementById('location-dropdown'); if(d) d.style.display='none'; }, 150)"
+            style="flex:1;margin-bottom:0;">
           <button class="btn btn-sm btn-primary" type="button" style="padding:6px 12px;white-space:nowrap;height:36px;display:flex;align-items:center;justify-content:center;" onclick="mapItFromCallLocation('${call.id}')">🌎</button>
         </div>
+        <div id="location-dropdown" style="display:none;position:absolute;left:0;right:54px;top:calc(100% + 2px);background:#0d1117;border:1px solid var(--accent);border-radius:6px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.7);"></div>
       </div>
+
 
       <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">Comments <span style="font-size:10px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">Use &lt;text&gt; to bold</span></div>
       <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;max-height:200px;overflow-y:auto;margin-bottom:8px;" id="narrative-feed-${call.id}">
@@ -4007,11 +4100,28 @@ function appendNarrativeEntry(callId, text) {
   if (inp) inp.focus();
 }
 
-function saveCallProfileField(field, value) {
+// `locationObj` is optional and only ever passed when field === 'location'
+// and the value came from selecting a result in the location search
+// dropdown (see onLocationSelected). Manually typing a *different* location
+// clears call.locationObj to null — a stale object pointing at the wrong
+// place is worse than no object. But selecting a result also leaves the
+// input's native onchange armed, which re-fires saveCallProfileField with
+// no object as soon as the field blurs; if that happens with the SAME value
+// we just saved (not a real edit), we must not let it wipe locationObj.
+function saveCallProfileField(field, value, locationObj) {
   const call = state.calls.find(c => c.id === state.selectedCallId);
   if (call) {
     var oldValue = call[field];
     call[field] = value;
+    if (field === 'location') {
+      if (locationObj) {
+        call.locationObj = locationObj;
+      } else if (oldValue !== value) {
+        call.locationObj = null;
+      }
+      // else: value unchanged and no object passed (the redundant onchange
+      // after a dropdown selection) — leave whatever locationObj already is.
+    }
 
     // Auto-append narrative entry when location or call type changes (not on new/blank calls)
     if ((field === 'location' || field === 'type') && oldValue && oldValue !== value && value) {
@@ -4267,10 +4377,27 @@ function forceIncidentsTabActive() {
 
 function createIncidentFromMap(data) {
   const newId = (1000 + state.calls.length + Math.floor(Math.random() * 100)).toString();
+
+  // The map only ever sends a bare postal code (it has no road/landmark
+  // data of its own — see POSTAL_DATA in CoreOneMap.html). Resolve that
+  // postal against the same LOCATIONS table the dropdown uses, so a
+  // map-created incident gets a real locationObj from the start instead
+  // of relying on a dispatcher to re-pick the location later. Falls back
+  // to the raw postal/location string if the postal isn't in the table
+  // (e.g. a postal that exists on the map image but has no address row).
+  const rawPostal = data.postal || '';
+  const resolvedLoc = (typeof LOCATIONS_BY_POSTAL !== 'undefined' && rawPostal)
+    ? LOCATIONS_BY_POSTAL[rawPostal]
+    : null;
+  const locationLabel = resolvedLoc
+    ? formatLocationLabel(resolvedLoc)
+    : (data.location || rawPostal || '');
+
   state.calls.push({
     id: newId,
     type: '',
-    location: data.location || (data.postal || ''),
+    location: locationLabel,
+    locationObj: resolvedLoc || null,
     priority: '',
     source: '911',
     dept: callDeptFilter !== 'ALL' ? callDeptFilter : 'Law',
@@ -4321,7 +4448,18 @@ window.addEventListener('message', function(event) {
   }
 });
 
-function mapItFromCardDblClick(location) {
+function mapItFromCardDblClick(callId) {
+  const call = state.calls.find(c => c.id === callId);
+  if (!call) return;
+
+  if (call.locationObj && call.locationObj.postal) {
+    openMapWindowBackground(call.locationObj.postal);
+    return;
+  }
+
+  // Fallback for calls with no selected location object (older calls, or
+  // free-typed text) — same regex extraction this always used.
+  const location = call.location;
   if (!location || typeof location !== 'string') {
     return;
   }
@@ -4337,14 +4475,24 @@ function mapItFromUnitCard(unitId) {
   if (!unit || !unit.assignedCall) {
     return;
   }
-  const call = state.calls.find(c => c.id === unit.assignedCall);
-  if (!call || !call.location) {
-    return;
-  }
-  mapItFromCardDblClick(call.location);
+  mapItFromCardDblClick(unit.assignedCall);
 }
 
 function mapItFromCallLocation(callId) {
+  const call = state.calls.find(c => c.id === callId);
+
+  // Prefer the structured postal from a dropdown-selected location — no
+  // regex needed, and correct even if the road/landmark text happens to
+  // contain an unrelated 3-digit number (e.g. "Milepost 2" wouldn't matter
+  // here, but a future landmark name like "Engine 113" would have).
+  if (call && call.locationObj && call.locationObj.postal) {
+    openMapWindowBackground(call.locationObj.postal);
+    toast(`🗺️ Map updated to postal ${call.locationObj.postal}`);
+    return;
+  }
+
+  // Fallback: free-typed location with no selected object, same regex
+  // extraction as before.
   const inputEl = document.getElementById(`call-location-input-${callId}`);
   const location = inputEl ? inputEl.value : '';
   if (!location || !/\b\d{3}\b/.test(location)) {
@@ -4598,9 +4746,20 @@ function cadTypeKey(e) {
     e.preventDefault();
     cadTypeActiveIdx = Math.max(cadTypeActiveIdx - 1, 0);
   } else if (e.key === 'Enter' || e.key === 'Tab') {
-    if (cadTypeActiveIdx >= 0 && items[cadTypeActiveIdx]) {
+    // If the user typed and hit Enter/Tab without arrowing or hovering to
+    // highlight a result, cadTypeActiveIdx is still -1. Default to the
+    // top match (index 0) instead of silently doing nothing — that's the
+    // result the dropdown is already showing as the best match, and it's
+    // what a dispatcher typing fast and hitting Enter/Tab expects to land.
+    // Only do this when there's an actual query narrowing the list — an
+    // empty/untouched field shows the full unfiltered list, and Tabbing
+    // past it (the normal "skip this field" gesture) should not silently
+    // assign whatever happens to be first in that list.
+    var hasQuery = e.target && e.target.value && e.target.value.trim().length > 0;
+    var idx = cadTypeActiveIdx >= 0 ? cadTypeActiveIdx : (hasQuery ? 0 : -1);
+    if (idx >= 0 && items[idx]) {
       e.preventDefault();
-      cadTypeSelect(items[cadTypeActiveIdx]);
+      cadTypeSelect(items[idx]);
     }
     return;
   } else if (e.key === 'Escape') {
@@ -5063,6 +5222,159 @@ function cliTypeKey(e) {
   }
   items.forEach(function(item, i) { item.style.background = (i === cliTypeActiveIdx) ? '#1f293d' : ''; });
   if (items[cliTypeActiveIdx]) items[cliTypeActiveIdx].scrollIntoView({block:'nearest'});
+  return true;
+}
+
+// ═══════════════════════════════════════════════════════════
+//  CLI LOCATION DROPDOWN — same pattern as the CLI type dropdown above,
+//  but resolving against LOCATIONS via locationSearch() (locationSearch.js)
+//  so the II command's location segment gets a real locationObj instead
+//  of free-typed text, the same way the Location field on the call
+//  profile already works via onLocationSelected.
+// ═══════════════════════════════════════════════════════════
+
+var cliLocationActiveIdx = -1;
+
+function showCliLocationDropdown(query) {
+  var dropdown = document.getElementById('cli-location-dropdown');
+  if (!dropdown || typeof locationSearch === 'undefined') return;
+  var matches = locationSearch(query);
+  cliLocationActiveIdx = -1;
+  if (!matches.length) { dropdown.style.display = 'none'; return; }
+  var q = (query || '').trim();
+  var html = '';
+  for (var i = 0; i < matches.length; i++) {
+    var loc = matches[i];
+    var label = formatLocationLabel(loc);
+    html += '<div class="cli-location-item" data-idx="' + i + '"' +
+      ' onclick="cliLocationSelect(' + i + ')" onmouseover="cliLocationHover(' + i + ')"' +
+      ' style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;cursor:pointer;border-bottom:1px solid #1c2128;">' +
+      '<span style="font-size:13px;">' + locationHlMatch(label, q) + '</span>' +
+      '<span style="font-family:monospace;font-size:11px;color:#8b949e;background:#21262d;padding:1px 6px;border-radius:3px;flex-shrink:0;margin-left:10px;">' + loc.postal + '</span>' +
+    '</div>';
+  }
+  dropdown.innerHTML = html;
+  dropdown.style.display = 'block';
+  dropdown.__matches = matches;
+}
+
+function hideCliLocationDropdown() {
+  var dropdown = document.getElementById('cli-location-dropdown');
+  if (dropdown) dropdown.style.display = 'none';
+  cliLocationActiveIdx = -1;
+}
+
+function cliLocationHover(idx) {
+  var dropdown = document.getElementById('cli-location-dropdown');
+  if (!dropdown) return;
+  var items = dropdown.querySelectorAll('.cli-location-item');
+  items.forEach(function(item, i) {
+    item.style.background = (i === idx) ? '#1f293d' : '';
+  });
+  cliLocationActiveIdx = idx;
+}
+
+function cliLocationSelect(idx) {
+  var dropdown = document.getElementById('cli-location-dropdown');
+  if (!dropdown || !dropdown.__matches) return;
+  var loc = dropdown.__matches[idx];
+  if (!loc) return;
+  // The II command bar is '/'-delimited (event / location / comments), but
+  // some landmark names contain a literal '/' (e.g. "24/7 Supermarket"),
+  // which would corrupt that parsing if inserted as-is. Swap any '/' in the
+  // label for '-' for display/insertion in the command bar only — the
+  // underlying locationObj (and therefore call.location / call.locationObj
+  // once the incident is created) keeps the real, unaltered text.
+  var rawLabel = formatLocationLabel(loc);
+  var label = rawLabel.replace(/\//g, '-');
+  var input = document.getElementById('cli-input');
+  if (!input) return;
+
+  // Determine which ';'-separated segment the cursor is in, same approach
+  // as cliTypeSelect.
+  var fullVal = input.value;
+  var cursorPos = input.selectionStart;
+  var allSegs = fullVal.split(';');
+  var segIdx = 0;
+  var charCount = 0;
+  for (var si = 0; si < allSegs.length; si++) {
+    charCount += allSegs[si].length + (si > 0 ? 1 : 0);
+    if (cursorPos <= charCount) { segIdx = si; break; }
+    if (si === allSegs.length - 1) segIdx = si;
+  }
+
+  // Stash the structured location, scoped to this segment, so the II
+  // executor can pull a real locationObj instead of re-parsing text.
+  // pendingLocation stores the sanitized label (what will actually appear
+  // in the parsed command segment, so the staleness check in
+  // executeSingleCommand can match it) — pendingLocationObj keeps the
+  // original, untouched loc object for the saved call.
+  input.dataset['pendingLocation_' + segIdx] = label;
+  input.dataset['pendingLocationObj_' + segIdx] = JSON.stringify(loc);
+  if (segIdx === 0) {
+    input.dataset.pendingLocation = label;
+    input.dataset.pendingLocationObj = JSON.stringify(loc);
+  }
+
+  // Rewrite only the location portion of the active segment: everything
+  // up through the first '/' (event) is kept as-is, the text between the
+  // 1st and 2nd '/' is replaced with the selected label, and anything
+  // after a 2nd '/' (comments) is preserved.
+  var activeSeg = allSegs[segIdx];
+  var firstSlash = activeSeg.indexOf('/');
+  var newSeg;
+  if (firstSlash === -1) {
+    // No event/location separator yet — shouldn't normally happen since
+    // the dropdown only opens once the event segment is resolved, but
+    // fall back to just appending it.
+    newSeg = activeSeg.replace(/\s+$/, '') + ' / ' + label + ' / ';
+  } else {
+    var beforeLoc = activeSeg.slice(0, firstSlash + 1); // includes the '/'
+    var afterLoc = activeSeg.slice(firstSlash + 1);
+    var secondSlash = afterLoc.indexOf('/');
+    var tail = secondSlash === -1 ? '' : afterLoc.slice(secondSlash); // includes the '/'
+    newSeg = beforeLoc + ' ' + label + ' ' + (tail ? tail.trim() : '/ ');
+  }
+
+  allSegs[segIdx] = (segIdx === 0 ? '' : ' ') + newSeg;
+  var rebuilt = allSegs.map(function(s, i) { return i === 0 ? s : ' ' + s.trim(); }).join(';');
+  input.value = rebuilt;
+
+  dropdown.style.display = 'none';
+  input.focus();
+  processLiveCommandAssist();
+}
+
+function cliLocationKey(e) {
+  var dropdown = document.getElementById('cli-location-dropdown');
+  if (!dropdown || dropdown.style.display === 'none') return false;
+  var items = dropdown.querySelectorAll('.cli-location-item');
+  if (!items.length) return false;
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    cliLocationActiveIdx = Math.min(cliLocationActiveIdx + 1, items.length - 1);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    cliLocationActiveIdx = Math.max(cliLocationActiveIdx - 1, 0);
+  } else if (e.key === 'Enter' || e.key === 'Tab') {
+    // Default to the top match if nothing's been arrow-key-highlighted yet —
+    // same fast-typing fix applied to the call-type and location-field
+    // dropdowns elsewhere in this app.
+    var idx = cliLocationActiveIdx >= 0 ? cliLocationActiveIdx : 0;
+    if (items[idx]) {
+      e.preventDefault();
+      cliLocationSelect(idx);
+      return true;
+    }
+    return false;
+  } else if (e.key === 'Escape') {
+    dropdown.style.display = 'none';
+    return false;
+  } else {
+    return false;
+  }
+  items.forEach(function(item, i) { item.style.background = (i === cliLocationActiveIdx) ? '#1f293d' : ''; });
+  if (items[cliLocationActiveIdx]) items[cliLocationActiveIdx].scrollIntoView({block:'nearest'});
   return true;
 }
 </script>
