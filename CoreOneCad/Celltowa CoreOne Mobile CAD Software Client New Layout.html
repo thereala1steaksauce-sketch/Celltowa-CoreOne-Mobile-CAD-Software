@@ -28,12 +28,19 @@
   
   * { box-sizing: border-box; margin: 0; padding: 0; }
   
+  html {
+    zoom: 0.9; /* Replicates the look of the browser at 90% zoom (Ctrl -) */
+    height: 111.112vh;  /* 100/0.9 — pre-inflate so the 0.9 zoom shrinks it back to exactly 100vh, filling the real viewport with no leftover bar */
+    width: 111.112vw;
+    overflow: hidden;
+  }
+  
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     background: var(--bg);
     color: var(--text);
     font-size: 13px;
-    height: 100vh;
+    height: 100%;
     overflow: hidden;
     letter-spacing: 0.2px;
   }
@@ -41,7 +48,7 @@
   #app {
     display: grid;
     grid-template-rows: 52px 70px 1fr 34px;
-    height: 100vh;
+    height: 100%;
   }
 
   /* ── Bottom utility footer bar ── */
@@ -221,15 +228,16 @@
   .assist-highlight { color: var(--amber); font-weight: 600; }
   .assist-valid { color: var(--green); font-weight: 600; }
 
-  /* #main holds 6 top-level children: the two full-width overlay tabs
-     (#tab-bolos, #tab-history) plus the 4 quadrant panels below. The grid
-     itself only needs 2 columns x 2 rows — the overlay tabs span both
-     columns via grid-column: 1 / -1 so they float above the quadrants
-     without needing extra rows. */
+  /* #main holds the two full-width overlay tabs (#tab-bolos, #tab-history),
+     spanning both columns via grid-column: 1 / -1, plus two column
+     wrappers (#col-left, #col-right). Each column wrapper is a flex column
+     stacking its two quadrant panels — this is what lets every panel's
+     height be set independently (via --panel-h on .quadrant-cell) instead
+     of all 4 panels being forced into one shared 50/50 row split. */
   #main {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
+    grid-template-rows: 1fr;
     gap: 12px;
     height: 100%;
     min-height: 0;
@@ -238,23 +246,30 @@
     padding: 10px;
   }
 
-  /* Exact corner pinning — explicit because the DOM order of the four
-     quadrants (right-panel, units-panel, map-iframe, details-panel) is
-     column-first, not the row-first order grid auto-placement assumes. */
-  #right-panel   { grid-area: 1 / 1 / 2 / 2; } /* top-left:     Incidents */
-  #units-panel   { grid-area: 2 / 1 / 3 / 2; } /* bottom-left:  Units */
-  #map-iframe    { grid-area: 1 / 2 / 2 / 3; } /* top-right:    Map */
-  #details-panel { grid-area: 2 / 2 / 3 / 3; } /* bottom-right: Incident/Unit Viewer */
+  .quadrant-col {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+  }
 
-  /* The four quadrants get .panel's flex/background/border styling already;
-     they only need their own overflow clipping so internal scroll regions
-     (table bodies, unit columns, the details viewer) handle scrolling
-     instead of the quadrant box itself. min-width/min-height:0 override the
-     grid item's implicit content-based minimum size — without this, a
-     panel with wider/taller content (e.g. Details' form fields) can force
-     its row/column track larger than its 1fr share, breaking the equal
-     50/50 split between quadrants. */
-  #right-panel, #units-panel, #details-panel, #map-iframe {
+  /* Each panel's height inside its column's flex stack is driven by a
+     per-quadrant CSS variable (default 50%), set inline by the Layout
+     Customizer (see applyLayoutToDOM). flex: 0 0 <height> keeps the two
+     stacked panels from fighting over space the way flex:1 1 auto would,
+     and lets one panel be taller than its sibling. */
+  .quadrant-cell {
+    flex: 0 0 var(--panel-h, 50%);
+    min-width: 0;
+    min-height: 0;
+  }
+
+  /* Panels are no longer direct grid children of #main — each lives inside
+     a .quadrant-col wrapper (#col-left or #col-right) and is sized via the
+     .quadrant-cell flex-basis (--panel-h custom property) set above. */
+  #right-panel, #units-panel, #details-panel, #map-panel {
     overflow: hidden;
     min-width: 0;
     min-height: 0;
@@ -269,11 +284,69 @@
     display: block;
   }
 
+  /* Map quadrant wrapper — holds the header bar + the iframe together */
+  #map-panel {
+    overflow: hidden;
+    min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg2);
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+
+  /* Re-anchor the iframe to fill inside the wrapper */
+  #map-iframe {
+    flex: 1;
+    min-height: 0;
+    border-radius: 0 0 8px 8px;
+    width: 100%;
+    border: none;
+  }
+
+  #map-panel-header {
+    flex-shrink: 0;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--bg2);
+    border-radius: 8px 8px 0 0;
+  }
+
+  #map-popout-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 13px;
+    padding: 2px 8px;
+    line-height: 1.4;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  #map-popout-btn:hover {
+    background: var(--bg3);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
   /* The Layout Customizer modal (openLayoutModal) reorders/resizes panels
      into a flat 3-column row — built for the old #main layout, not this
      fixed 2x2 quadrant grid. Hidden rather than removed since the modal
      markup/logic is left in place. */
-  #layout-btn { display: none; }
+  #layout-btn { display: inline-block; }
 
   .panel {
     overflow-y: auto;
@@ -1114,10 +1187,9 @@
     <div class="spacer"></div>
     <div id="nav-tabs">
       <div class="nav-tab active" id="nav-tab-calls" onclick="switchTab('calls',this)">Incidents</div>
-      <div class="nav-tab" onclick="switchTab('board',this)">Units</div>
       <div class="nav-tab" onclick="switchTab('bolos',this)">Alerts &amp; BOLOs</div>
       <div class="nav-tab" onclick="switchTab('history',this)">History</div>
-      <div class="nav-tab" onclick="openMapWindow()">Map</div>
+      <div class="nav-tab" onclick="openLayoutModal()">⊞ Layout</div>
       <div class="nav-tab" onclick="openRMSWindow()">RMS</div>
     </div>
     <div class="clock" id="clock">00:00:00</div>
@@ -1167,7 +1239,8 @@
       <div id="history-list" style="display:flex; flex-direction:column; gap:10px; padding:0 0 10px 0;"></div>
   </div>
 
-  <div id="right-panel" class="panel">
+  <div id="col-left" class="quadrant-col">
+  <div id="right-panel" class="panel quadrant-cell">
     <div id="tab-calls">
       <div class="panel-header">Incident Overview <span id="call-count" style="color:var(--accent)"></span></div>
       <div id="dept-filter-tabs" style="display:flex;gap:0;border-bottom:1px solid var(--border);background:#090d13;">
@@ -1206,7 +1279,7 @@
     </div>
   </div>
 
-  <div id="units-panel" class="panel">
+  <div id="units-panel" class="panel quadrant-cell">
     <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;">
       <span>Unit Overview <span id="unit-count" style="color:var(--accent)"></span></span>
       <button id="dept-sync-btn" onclick="toggleDeptSync()" title="Unlink unit filter from incident filter"
@@ -1250,16 +1323,26 @@
       </div>
     </div>
   </div>
+  </div>
 
-  <iframe id="map-iframe" class="panel" src="../CoreOneMap/CoreOneMap.html" style="border:none; width:100%; height:100%;"></iframe>
+  <div id="col-right" class="quadrant-col">
+  <div id="map-panel" class="quadrant-cell">
+    <div id="map-panel-header">
+      <span>🗺 Live Map</span>
+      <button id="map-popout-btn" onclick="popOutMap()" title="Pop out map to a separate window">⤢ Pop Out</button>
+    </div>
+    <iframe id="map-iframe" src="../CoreOneMap/CoreOneMap.html"></iframe>
+  </div>
 
-  <div id="details-panel" class="panel">
+  <div id="details-panel" class="panel quadrant-cell">
     <div class="panel-header" id="details-panel-title">Incident Viewer</div>
     <div id="details-container" class="details-content">
       <div class="details-empty">Select an incident log stack entry from the left or select a unit assignment block to project config layout frames here.</div>
     </div>
   </div>
   </div>
+  </div>
+
 
 
   <div id="footer-bar">
@@ -1275,51 +1358,55 @@
 
 <div id="toast"></div>
 
-<!-- ── Layout Customizer Modal ── -->
+<!-- ── Layout Customizer Modal (2×2 Grid) ── -->
 <div id="layout-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9000;backdrop-filter:blur(4px);" onclick="closeLayoutModal(event)">
-  <div id="layout-modal" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:760px;max-width:96vw;box-shadow:0 24px 64px rgba(0,0,0,0.7);padding:0;overflow:hidden;z-index:9001;" onclick="event.stopPropagation()">
-    <!-- Modal Header -->
-    <div style="padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3);">
+  <div id="layout-modal" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:820px;max-width:96vw;max-height:90vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,0.7);padding:0;z-index:9001;" onclick="event.stopPropagation()">
+
+    <!-- Header -->
+    <div style="padding:18px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3);position:sticky;top:0;z-index:2;">
       <div>
-        <div style="font-size:14px;font-weight:800;color:#fff;letter-spacing:1px;text-transform:uppercase;">⊞ Incident Layout</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:3px;">Drag panels to reorder · Resize width sliders · Changes apply instantly</div>
+        <div style="font-size:14px;font-weight:800;color:#fff;letter-spacing:1px;text-transform:uppercase;">⊞ Layout Customizer</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px;">Resize columns &amp; panel heights · Swap panel positions · Changes apply instantly</div>
       </div>
-      <button onclick="closeLayoutModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:4px 8px;border-radius:4px;line-height:1;" title="Close">✕</button>
+      <button onclick="closeLayoutModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:4px 8px;border-radius:4px;line-height:1;">✕</button>
     </div>
 
-    <!-- Live Preview -->
+    <!-- Live Grid Preview -->
     <div style="padding:20px 24px 0;">
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Live Preview</div>
-      <div id="layout-preview" style="display:flex;gap:4px;height:60px;border-radius:6px;overflow:hidden;border:1px solid var(--border);">
-        <div id="preview-left"  style="background:linear-gradient(135deg,#162235,#1c2336);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--accent);transition:flex .15s;border-right:1px solid var(--border);">OVERVIEW</div>
-        <div id="preview-mid"   style="background:linear-gradient(135deg,#0f1d2e,#162235);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--purple);transition:flex .15s;border-right:1px solid var(--border);">VIEWER</div>
-        <div id="preview-right" style="background:linear-gradient(135deg,#162235,#1c2336);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--green);transition:flex .15s;">UNITS</div>
+      <div id="layout-grid-preview" style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:3px;height:120px;border-radius:6px;overflow:hidden;border:1px solid var(--border);">
+        <div id="lprev-incidents" style="background:linear-gradient(135deg,#0f1d2e,#162235);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--accent);transition:all .2s;">INCIDENTS</div>
+        <div id="lprev-map"       style="background:linear-gradient(135deg,#0d1a0f,#122018);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--green);transition:all .2s;">MAP</div>
+        <div id="lprev-units"     style="background:linear-gradient(135deg,#1a0d1a,#211226);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--purple);transition:all .2s;">UNITS</div>
+        <div id="lprev-details"   style="background:linear-gradient(135deg,#1a1200,#211800);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--amber);transition:all .2s;">DETAILS</div>
       </div>
     </div>
 
-    <!-- Panel Controls -->
+    <!-- Controls body -->
     <div style="padding:20px 24px;" id="layout-panel-controls">
-      <!-- Panels listed here via JS -->
+      <!-- Populated by buildLayoutModal() -->
     </div>
 
     <!-- Presets -->
     <div style="padding:0 24px 16px;">
       <div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">Presets</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn btn-sm" onclick="applyLayoutPreset('default')" style="font-size:11px;">Default</button>
-        <button class="btn btn-sm" onclick="applyLayoutPreset('focused-viewer')" style="font-size:11px;">Focused Viewer</button>
-        <button class="btn btn-sm" onclick="applyLayoutPreset('wide-overview')" style="font-size:11px;">Wide Overview</button>
-        <button class="btn btn-sm" onclick="applyLayoutPreset('wide-units')" style="font-size:11px;">Wide Units</button>
-        <button class="btn btn-sm" onclick="applyLayoutPreset('equal')" style="font-size:11px;">Equal Split</button>
+        <button class="btn btn-sm" onclick="applyLayoutPreset('default')"        style="font-size:11px;">⬜ Default (50/50)</button>
+        <button class="btn btn-sm" onclick="applyLayoutPreset('wide-left')"      style="font-size:11px;">◧ Wide Incidents</button>
+        <button class="btn btn-sm" onclick="applyLayoutPreset('wide-right')"     style="font-size:11px;">◨ Wide Map/Details</button>
+        <button class="btn btn-sm" onclick="applyLayoutPreset('tall-top')"       style="font-size:11px;">⬒ Tall Top Row</button>
+        <button class="btn btn-sm" onclick="applyLayoutPreset('tall-bottom')"    style="font-size:11px;">⬓ Tall Bottom Row</button>
+        <button class="btn btn-sm" onclick="applyLayoutPreset('focus-map')"      style="font-size:11px;">🗺 Focus Map</button>
+        <button class="btn btn-sm" onclick="applyLayoutPreset('focus-details')"  style="font-size:11px;">📋 Focus Details</button>
       </div>
     </div>
 
-    <!-- Footer Actions -->
-    <div style="padding:14px 24px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3);">
+    <!-- Footer -->
+    <div style="padding:14px 24px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3);position:sticky;bottom:0;z-index:2;">
       <button class="btn btn-sm" onclick="resetLayout()" style="color:var(--red);border-color:var(--red);">↺ Reset to Default</button>
       <div style="display:flex;gap:8px;">
         <button class="btn btn-sm" onclick="closeLayoutModal()" style="color:var(--muted);">Cancel</button>
-        <button class="btn btn-sm btn-primary" onclick="applyAndCloseLayout()">✓ Apply Layout</button>
+        <button class="btn btn-sm btn-primary" onclick="applyAndCloseLayout()">✓ Apply &amp; Close</button>
       </div>
     </div>
   </div>
@@ -1872,9 +1959,9 @@ function processLiveCommandAssist() {
   if (cmd === 'LOC') {
     const postal = tokens.slice(1).join(' ').trim();
     if (!postal) {
-      assistEl.innerHTML = dualStackPrefix + "Syntax: LOC <span class='assist-highlight'>[postal]</span> — Opens the map and moves to the requested postal area.";
+      assistEl.innerHTML = dualStackPrefix + "Syntax: LOC <span class='assist-highlight'>[postal]</span> — Pans the embedded map to the requested postal area.";
     } else {
-      assistEl.innerHTML = dualStackPrefix + `Action: <span class='assist-valid'>[OPEN MAP]</span> ➔ Postal: <span style='color:var(--accent)'>${postal}</span>`;
+      assistEl.innerHTML = dualStackPrefix + `Action: <span class='assist-valid'>[PAN EMBEDDED MAP]</span> ➔ Postal: <span style='color:var(--accent)'>${postal}</span>`;
     }
     hideCliTypeDropdown();
     return;
@@ -2482,7 +2569,7 @@ function executeSingleCommand(val, segIdx) {
         processLiveCommandAssist();
         return;
       }
-      openMapWindowBackground(postal);
+      sendPostalToEmbeddedMap(postal);
       toast(`🗺️ Map updated to postal ${postal}`);
       processLiveCommandAssist();
       return;
@@ -3512,16 +3599,16 @@ function buildMapIncidents() {
   });
 }
 
-// renderCAD fires on nearly every interaction (clicks, dropdowns, keystrokes),
-// but the map only cares about a small slice of that: open calls, their
-// location/type, and assigned units' callsign+status. Debounce the postMessage
-// and skip it entirely when that slice hasn't actually changed, so typing in
-// an unrelated field (or any other rapid-fire render) doesn't repeatedly
-// rebuild markers/popups on the map side.
+// syncMapIncidents fires on every renderCAD call but is debounced and
+// fingerprint-checked so it only actually posts when incident data changes.
+// Guard logic: always send to the embedded map (it's always present unless
+// the map is popped out, in which case broadcastToMaps handles routing).
+// The old guard "if (!mapWindowRef || mapWindowRef.closed) return" was
+// skipping the sync entirely whenever the popup wasn't open — wrong now
+// that the embedded map is the primary target.
 function syncMapIncidents() {
   if (mapSyncTimer) clearTimeout(mapSyncTimer);
   mapSyncTimer = setTimeout(function() {
-    if (!mapWindowRef || mapWindowRef.closed) return;
     const activeIncidents = buildMapIncidents();
     const fingerprint = JSON.stringify(activeIncidents);
     if (fingerprint === lastMapSyncFingerprint) return;
@@ -3644,7 +3731,7 @@ function renderCAD() {
           const compositeNote = u.isComposite ? `<span class="ucol-incident-loc">👥 ${u.memberCallsigns.join(' / ')}</span>` : '';
 
           return `
-  <tr class="unit-row ${deptRail} ${isSelected}" ${dragAttrs} onclick="${clickFn}" ondblclick="mapItFromCardDblClick('${u.assignedCall || ''}')">
+  <tr class="unit-row ${deptRail} ${isSelected}" ${dragAttrs} onclick="${clickFn}">
     <td class="ucol-td-unit">${displayName}</td>
     <td class="ucol-td-status"><span class="unit-status ${cls} status-clickable" onclick="event.stopPropagation(); toggleUnitCardStatusPicker(event,'${u.id}')" title="Click to change status">${u.status.toUpperCase()}</span></td>
     <td class="ucol-td-incident" onclick="event.stopPropagation(); ${u.assignedCall ? `openCallProfile('${u.assignedCall}')` : ''}">${incidentCell}${compositeNote}</td>
@@ -3660,7 +3747,7 @@ function renderCAD() {
         const compositeMeta = u.isComposite ? `👥 ${u.memberCallsigns.join(' / ')}` : metaParts.join(' &bull; ');
 
         return `
-  <tr class="unit-row ${deptRail} ${isSelected}" ${dragAttrs} onclick="${clickFn}" ondblclick="mapItFromCardDblClick('${u.assignedCall || ''}')">
+  <tr class="unit-row ${deptRail} ${isSelected}" ${dragAttrs} onclick="${clickFn}">
     <td class="ucol-td-unit">${displayName}</td>
     <td class="ucol-td-meta">${deptBadge}${compositeMeta}</td>
   </tr>
@@ -3775,14 +3862,13 @@ function renderCAD() {
       return `
   <tr class="incident-row row-${pClass} ${isSelected}"
      onclick="openCallProfile('${c.id}')"
-     ondblclick="mapItFromCardDblClick('${c.id}')"
       ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move'; this.classList.add('drag-over');"
       ondragleave="this.classList.remove('drag-over');"
       ondrop="this.classList.remove('drag-over'); handleDrop(event, '${c.id}');">
     <td class="col-incno">#${c.id}</td>
     <td class="col-code" title="${codeTitle}">${codeDisplay}</td>
     <td class="col-pri"><span class="call-priority ${pClass}">PRI-${c.priority || '3'}</span></td>
-    <td class="col-loc" title="${c.location || 'Unknown Location'}">📍 ${c.location || 'Unknown Location'}</td>
+    <td class="col-loc" title="${c.location || 'Unknown Location'}"> ${c.location || 'Unknown Location'}</td>
     <td class="col-units">
       <div class="incidents-row-units">
         ${assignedTags || '<span style="color:var(--muted); font-size:10px;">No units routed</span>'}
@@ -3798,7 +3884,7 @@ function renderCAD() {
     const cls = STATUS_STYLES[u.status] || 's-unavailable';
     const isSelected = (state.selectedUnitId === u.id && state.activeProfileView === 'UNIT') ? 'selected-unit' : '';
     return `
-      <div class="unit-card ${isSelected}" style="border: 1px solid var(--border); border-radius:6px; background: var(--bg3); flex-direction:column; cursor:pointer;" onclick="openUnitProfile('${u.id}')" ondblclick="mapItFromUnitCard('${u.id}')">
+      <div class="unit-card ${isSelected}" style="border: 1px solid var(--border); border-radius:6px; background: var(--bg3); flex-direction:column; cursor:pointer;" onclick="openUnitProfile('${u.id}')">
         <div style="font-size:15px; font-weight:bold;">${u.callsign || '---'}</div>
         <span class="unit-status ${cls}">${u.status.toUpperCase()}</span>
         ${u.agency ? `<div style="font-size:9px;color:var(--muted);margin-top:3px;letter-spacing:.3px;">${u.agency}</div>` : ''}
@@ -4353,8 +4439,20 @@ function dispatchProfileSplitViewRenderer() {
   }
 }
 
-function openUnitProfile(id) { state.selectedUnitId = id; state.activeProfileView = 'UNIT'; renderCAD(); }
-function openCallProfile(id) { state.selectedCallId = id; state.activeProfileView = 'CALL'; renderCAD(); }
+function openUnitProfile(id) {
+  state.selectedUnitId = id;
+  state.activeProfileView = 'UNIT';
+  // Pan the map to this unit's assigned call postal (silent bail if none)
+  mapItFromUnitCard(id);
+  renderCAD();
+}
+function openCallProfile(id) {
+  state.selectedCallId = id;
+  state.activeProfileView = 'CALL';
+  // Pan the map to this call's postal (silent bail if no valid postal)
+  mapItFromCardSelect(id);
+  renderCAD();
+}
 function closeProfileViewer() { state.activeProfileView = null; renderCAD(); }
 
 function saveUnitProfileField(field, value) {
@@ -4419,6 +4517,13 @@ function saveCallProfileField(field, value, locationObj) {
       }
       // else: value unchanged and no object passed (the redundant onchange
       // after a dropdown selection) — leave whatever locationObj already is.
+
+      // Pan the embedded map whenever the location changes and a valid postal
+      // can be resolved — either from the new locationObj or from a 3-digit
+      // postal in the typed string. Silent bail if no postal found.
+      if (oldValue !== value || locationObj) {
+        mapItFromCardSelect(call.id);
+      }
     }
 
     // Auto-append narrative entry when location or call type changes (not on new/blank calls)
@@ -4508,6 +4613,133 @@ function switchTab(tab, el) {
   if (el) el.classList.add('active');
 }
 
+// ── Map pop-out state ────────────────────────────────────────────────────────
+// Tracks whether the map is currently popped out to a separate window.
+// sendPostalToEmbeddedMap() checks this flag to route goToPostal messages.
+// ── Map window + pop-out state ───────────────────────────────────────────────
+// All map-related state in one place so the declaration order is clear.
+// mapWindowRef   — reference to the popup window (null when closed/not open)
+// mapIsPopped    — true while the popup is the active map surface
+// mapPopoutPollTimer — interval that detects popup close for auto-revert
+var mapWindowRef = null;
+var mapIsPopped = false;
+var mapPopoutPollTimer = null;
+
+// Called by the ⤢ Pop Out button in the map panel header.
+// Spawns the popup, destroys the embedded iframe, expands the details panel.
+// Aborts cleanly if window.open() is blocked by the browser.
+function popOutMap() {
+  // Guard: already popped — re-focus the existing window if it's still open,
+  // otherwise the poll will have caught the close and called reEmbedMap already.
+  if (mapIsPopped) {
+    if (mapWindowRef && !mapWindowRef.closed) {
+      mapWindowRef.focus();
+    }
+    return;
+  }
+
+  // Spawn the popup window first — abort if blocked (toast shown by openMapWindow)
+  var popup = openMapWindow();
+  if (!popup) return;
+
+  // Set state only after confirmed successful open
+  mapIsPopped = true;
+
+  // Update button to reflect active pop-out state
+  var btn = document.getElementById('map-popout-btn');
+  if (btn) {
+    btn.textContent = '⤡ Re-focus Map';
+    btn.title = 'Click to bring the pop-out map window to front';
+  }
+
+  // Blank and hide the embedded iframe — prevents two Leaflet instances
+  var mapIframe = document.getElementById('map-iframe');
+  if (mapIframe) {
+    mapIframe.onload = null; // clear any pending onload from a previous reEmbed
+    mapIframe.src = 'about:blank';
+    mapIframe.style.display = 'none';
+  }
+
+  // Collapse #map-panel to zero height so it doesn't occupy column space
+  var mapPanel = document.getElementById('map-panel');
+  if (mapPanel) {
+    mapPanel.style.display = 'none';
+  }
+
+  // Expand details-panel to fill the full right column (both stacked slots)
+  var detailsPanel = document.getElementById('details-panel');
+  if (detailsPanel) {
+    detailsPanel.style.setProperty('--panel-h', '100%');
+  }
+
+  // Start polling — 1500ms interval detects popup close for seamless revert
+  if (mapPopoutPollTimer) clearInterval(mapPopoutPollTimer);
+  mapPopoutPollTimer = setInterval(function() {
+    if (mapWindowRef && mapWindowRef.closed) {
+      reEmbedMap();
+    }
+  }, 1500);
+}
+
+// Called automatically when the pop-out window close is detected by the poll.
+// Tears down the popped state and recreates the embedded iframe seamlessly.
+function reEmbedMap() {
+  // Guard against double-fire (poll fires every 1.5s; clear it immediately)
+  if (!mapIsPopped) return;
+
+  clearInterval(mapPopoutPollTimer);
+  mapPopoutPollTimer = null;
+  mapIsPopped = false;
+  mapWindowRef = null;
+
+  // Restore and show the map panel
+  var mapPanel = document.getElementById('map-panel');
+  if (mapPanel) {
+    mapPanel.style.display = '';
+  }
+
+  // Reset the pop-out button
+  var btn = document.getElementById('map-popout-btn');
+  if (btn) {
+    btn.textContent = '⤢ Pop Out';
+    btn.title = 'Pop out map to a separate window';
+  }
+
+  // Restore details-panel (and map-panel) to their saved/default heights —
+  // applyLayoutToDOM (using the saved layout, or the default 50/50 split)
+  // is the single source of truth for panel heights now.
+  applyLayoutToDOM(loadLayoutState());
+
+  // Recreate the iframe — show it first so the browser begins loading
+  // CoreOneMap.html while we set up the onload handler.
+  var mapIframe = document.getElementById('map-iframe');
+  if (mapIframe) {
+    mapIframe.onload = null; // clear any stale handler
+    mapIframe.style.display = '';
+    mapIframe.src = '../CoreOneMap/CoreOneMap.html';
+
+    // On load: push current incident data then pan to last selected call.
+    // Use a one-shot onload so it doesn't fire again on subsequent navigations.
+    mapIframe.onload = function() {
+      mapIframe.onload = null;
+      // Small additional delay — Leaflet may still be initialising its layer
+      // manager immediately after the load event fires. 300ms is enough for
+      // the tile layer + marker pane to be ready without being perceptible.
+      setTimeout(function() {
+        var activeIncidents = buildMapIncidents();
+        lastMapSyncFingerprint = JSON.stringify(activeIncidents);
+        if (mapIframe.contentWindow) {
+          mapIframe.contentWindow.postMessage({ type: 'updateIncidents', incidents: activeIncidents }, '*');
+        }
+        // Pan to last selected call if it has a valid postal
+        if (state.selectedCallId) {
+          mapItFromCardSelect(state.selectedCallId);
+        }
+      }, 300);
+    };
+  }
+}
+
 // Opens the map as a real separate popout window (not a same-window tab),
 // so it can be dragged to a second monitor / kept visible alongside CAD.
 // Tradeoff: Chrome will not let a script forcibly bring this window or the
@@ -4515,7 +4747,6 @@ function switchTab(tab, el) {
 // behavior is best-effort only (the title/flash cues still fire either way).
 const MAP_WINDOW_FEATURES = 'width=1200,height=800,left=100,top=100,popup=1,noopener=0';
 
-let mapWindowRef = null;
 function openOrUpdateMapWindow(postal, shouldFocus) {
   const windowName = 'CoreOneMapWindow';
   const isExisting = mapWindowRef && !mapWindowRef.closed;
@@ -4528,8 +4759,10 @@ function openOrUpdateMapWindow(postal, shouldFocus) {
       return null;
     }
     mapWindowRef = mapWindow;
+    // Send goToPostal directly to popup only — not via broadcastToMaps,
+    // which would also hit the embedded iframe (wrong surface when popped).
     if (postal) {
-      broadcastToMaps({ type: 'goToPostal', postal: postal });
+      mapWindowRef.postMessage({ type: 'goToPostal', postal: postal }, '*');
     }
   } else {
     const url = '../CoreOneMap/CoreOneMap.html' + (postal ? ('?postal=' + encodeURIComponent(postal)) : '');
@@ -4539,12 +4772,14 @@ function openOrUpdateMapWindow(postal, shouldFocus) {
       return null;
     }
     mapWindowRef = mapWindow;
-    // Send incident data after a short delay to allow map to initialize
-    setTimeout(() => {
+    // Send incident data after a short delay to allow popup to initialize.
+    // Sent directly to popup ref — not broadcast — so the embedded iframe
+    // does not receive a duplicate sync from this path.
+    setTimeout(function() {
       if (mapWindowRef && !mapWindowRef.closed) {
         const activeIncidents = buildMapIncidents();
         lastMapSyncFingerprint = JSON.stringify(activeIncidents);
-        broadcastToMaps({ type: 'updateIncidents', incidents: activeIncidents });
+        mapWindowRef.postMessage({ type: 'updateIncidents', incidents: activeIncidents }, '*');
       }
     }, 500);
   }
@@ -4736,87 +4971,132 @@ window.addEventListener('message', function(event) {
   } else if (event.data.type === 'viewCallInCAD') {
     viewCallFromMap(event.data.callId);
   } else if (event.data.type === 'requestIncidentSync') {
-    const mapWindow = (mapWindowRef && !mapWindowRef.closed) ? mapWindowRef : window.open('', 'CoreOneMapWindow', MAP_WINDOW_FEATURES);
-    if (mapWindow && !mapWindow.closed) {
-      mapWindowRef = mapWindow;
-      const activeIncidents = buildMapIncidents();
-      lastMapSyncFingerprint = JSON.stringify(activeIncidents);
-      broadcastToMaps({ type: 'updateIncidents', incidents: activeIncidents });
+    // A map surface (embedded iframe or popup) is asking for a full
+    // incident payload — typically on its first load or after a reload.
+    // Build fresh data and broadcast to whichever maps are active.
+    // If the map is popped out, also try to re-attach the window ref
+    // in case it was opened externally (e.g. page refresh in popup).
+    if (mapIsPopped) {
+      const mapWindow = (mapWindowRef && !mapWindowRef.closed)
+        ? mapWindowRef
+        : window.open('', 'CoreOneMapWindow', MAP_WINDOW_FEATURES);
+      if (mapWindow && !mapWindow.closed) {
+        mapWindowRef = mapWindow;
+      }
+    }
+    const activeIncidents = buildMapIncidents();
+    lastMapSyncFingerprint = JSON.stringify(activeIncidents);
+    broadcastToMaps({ type: 'updateIncidents', incidents: activeIncidents });
+    // Also re-pan to the last selected call if one is active
+    if (state.selectedCallId) {
+      mapItFromCardSelect(state.selectedCallId);
     }
   }
 });
 
-/* --- DUAL-MAP BROADCASTER --- */
+/* --- DUAL-MAP BROADCASTER ---
+   updateIncidents → both maps (popup and embedded) stay in sync.
+   goToPostal     → only the active map (sendPostalToEmbeddedMap handles routing).
+   Any other payload type → popup window only (existing behavior). */
 function broadcastToMaps(payload) {
-  // 1. Send to Popout Map (Existing behavior preserved)
+  var isIncidentSync = payload && payload.type === 'updateIncidents';
+
+  // Always send incident syncs to the popup if it's open
   if (typeof mapWindowRef !== 'undefined' && mapWindowRef && !mapWindowRef.closed) {
     mapWindowRef.postMessage(payload, '*');
   }
-  // 2. Send to Embedded Map (New behavior added)
-  var mapIframe = document.getElementById('map-iframe');
-  if (mapIframe && mapIframe.contentWindow) {
-    mapIframe.contentWindow.postMessage(payload, '*');
+
+  // Send incident syncs to the embedded iframe too (even while popped out,
+  // so it's current when it gets re-embedded). goToPostal navigation is
+  // intentionally excluded here — that's handled by sendPostalToEmbeddedMap.
+  if (isIncidentSync) {
+    var mapFrame = document.getElementById('map-iframe');
+    if (mapFrame && mapFrame.contentWindow) {
+      mapFrame.contentWindow.postMessage(payload, '*');
+    }
   }
 }
 
-function mapItFromCardDblClick(callId) {
-  const call = state.calls.find(c => c.id === callId);
+// ── Core map routing ────────────────────────────────────────────────────────
+// Single entry point for all postal-based map navigation. Routes to the
+// embedded iframe when the map is docked, or to the popup window when it
+// has been popped out (mapIsPopped flag, managed by Phase 5 code).
+// All other map-nav functions funnel through here — nothing else should
+// call openMapWindowBackground directly for navigation purposes.
+function sendPostalToEmbeddedMap(postal) {
+  if (!postal) return;
+  var payload = { type: 'goToPostal', postal: postal };
+  if (typeof mapIsPopped !== 'undefined' && mapIsPopped) {
+    // Map is popped out — route to popup window
+    if (mapWindowRef && !mapWindowRef.closed) {
+      mapWindowRef.postMessage(payload, '*');
+    }
+  } else {
+    // Map is embedded — route to iframe
+    var mapFrame = document.getElementById('map-iframe');
+    if (mapFrame && mapFrame.contentWindow) {
+      mapFrame.contentWindow.postMessage(payload, '*');
+    }
+  }
+}
+
+// Resolves a call ID to its best available postal and pans the map.
+// Called on single-click of an incident row. Silent bail if no postal.
+function mapItFromCardSelect(callId) {
+  var call = state.calls.find(function(c) { return c.id === callId; });
   if (!call) return;
 
+  // Prefer structured locationObj postal (dropdown-selected)
   if (call.locationObj && call.locationObj.postal) {
-    openMapWindowBackground(call.locationObj.postal);
+    sendPostalToEmbeddedMap(call.locationObj.postal);
     return;
   }
 
-  // Fallback for calls with no selected location object (older calls, or
-  // free-typed text) — same regex extraction this always used.
-  const location = call.location;
-  if (!location || typeof location !== 'string') {
-    return;
-  }
-  const postalMatch = location.match(/\b(\d{3})\b/);
-  if (!postalMatch) {
-    return;
-  }
-  openMapWindowBackground(postalMatch[1]);
+  // Fallback: extract 3-digit postal from free-typed location string
+  var location = call.location;
+  if (!location || typeof location !== 'string') return;
+  var postalMatch = location.match(/\b(\d{3})\b/);
+  if (!postalMatch) return;
+  sendPostalToEmbeddedMap(postalMatch[1]);
 }
 
+// Resolves a unit to its assigned call's postal and pans the map.
+// Called on single-click of a unit row. Silent bail if unassigned or no postal.
 function mapItFromUnitCard(unitId) {
-  const unit = state.units.find(u => u.id === unitId);
-  if (!unit || !unit.assignedCall) {
-    return;
-  }
-  mapItFromCardDblClick(unit.assignedCall);
+  var unit = state.units.find(function(u) { return u.id === unitId; });
+  if (!unit || !unit.assignedCall) return;
+  mapItFromCardSelect(unit.assignedCall);
 }
 
+// Called by the 🌎 button in the incident detail panel.
+// Uses locationObj postal if available, falls back to regex extraction.
 function mapItFromCallLocation(callId) {
-  const call = state.calls.find(c => c.id === callId);
+  var call = state.calls.find(function(c) { return c.id === callId; });
 
-  // Prefer the structured postal from a dropdown-selected location — no
-  // regex needed, and correct even if the road/landmark text happens to
-  // contain an unrelated 3-digit number (e.g. "Milepost 2" wouldn't matter
-  // here, but a future landmark name like "Engine 113" would have).
   if (call && call.locationObj && call.locationObj.postal) {
-    openMapWindowBackground(call.locationObj.postal);
-    toast(`🗺️ Map updated to postal ${call.locationObj.postal}`);
+    sendPostalToEmbeddedMap(call.locationObj.postal);
+    toast('\uD83D\uDDFA\uFE0F Map updated to postal ' + call.locationObj.postal);
     return;
   }
 
-  // Fallback: free-typed location with no selected object, same regex
-  // extraction as before.
-  const inputEl = document.getElementById(`call-location-input-${callId}`);
-  const location = inputEl ? inputEl.value : '';
+  var inputEl = document.getElementById('call-location-input-' + callId);
+  var location = inputEl ? inputEl.value : '';
   if (!location || !/\b\d{3}\b/.test(location)) {
     toast('⚠️ No valid postal found in location.');
     return;
   }
-  const postalMatch = location.match(/\b(\d{3})\b/);
+  var postalMatch = location.match(/\b(\d{3})\b/);
   if (!postalMatch) {
     toast('⚠️ No valid postal found in location.');
     return;
   }
-  openMapWindowBackground(postalMatch[1]);
-  toast(`🗺️ Map updated to postal ${postalMatch[1]}`);
+  sendPostalToEmbeddedMap(postalMatch[1]);
+  toast('\uD83D\uDDFA\uFE0F Map updated to postal ' + postalMatch[1]);
+}
+
+// Legacy name kept for backward compatibility — same as mapItFromCardSelect.
+function mapItFromCardDblClick(callId) {
+  mapItFromCardSelect(callId);
 }
 
 function getMapIncidentEmoji(call) {
@@ -4852,10 +5132,9 @@ function getMapIncidentEmoji(call) {
 
 function updateMapPostalByLocation(location) {
   if (!location || typeof location !== 'string') return;
-  const postalMatch = location.match(/\b(\d{3})\b/);
+  var postalMatch = location.match(/\b(\d{3})\b/);
   if (!postalMatch) return;
-  const postalCode = postalMatch[1];
-  openMapWindowBackground(postalCode);
+  sendPostalToEmbeddedMap(postalMatch[1]);
 }
 
 let toastTimer;
@@ -5253,22 +5532,69 @@ function cliTypeSelect(el) {
 //  LAYOUT CUSTOMIZER
 // ═══════════════════════════════════════════════════════════
 
-var LAYOUT_STORAGE_KEY = 'cad_layout_v1';
+// ═══════════════════════════════════════════════════════════
+// ── 2×2 GRID LAYOUT CUSTOMIZER ──────────────────────────────
+// Controls grid-template-columns (left/right column widths),
+// the height of each individual panel within its column
+// (rowTopLeft for TL/BL, rowTopRight for TR/BR — independent of
+// each other so every panel can have its own height), and which
+// panel occupies each of the 4 quadrant positions.
+// ═══════════════════════════════════════════════════════════
 
-// Panel definitions — order array drives left-to-right column order
-var layoutPanels = [
-  { id: 'right-panel',   label: 'Incident Overview', color: 'var(--accent)',  previewId: null },
-  { id: 'details-panel', label: 'Incident Viewer',   color: 'var(--purple)', previewId: null },
-  { id: 'units-panel',   label: 'Unit Overview',     color: 'var(--green)',  previewId: null },
+var LAYOUT_STORAGE_KEY = 'cad_layout_v3';
+
+// Quadrant positions: TL=top-left, TR=top-right, BL=bottom-left, BR=bottom-right
+// Default: Incidents TL, Map TR, Units BL, Details BR
+var LAYOUT_PANELS = [
+  { id: 'right-panel',   label: 'Incidents', color: 'var(--accent)',  short: 'INCIDENTS' },
+  { id: 'map-panel',     label: 'Map',       color: 'var(--green)',   short: 'MAP'       },
+  { id: 'units-panel',   label: 'Units',     color: 'var(--purple)',  short: 'UNITS'     },
+  { id: 'details-panel', label: 'Details',   color: 'var(--amber)',   short: 'DETAILS'   },
 ];
 
-// Working copy while modal is open
+var LAYOUT_POSITIONS = ['TL', 'TR', 'BL', 'BR']; // top-left, top-right, bottom-left, bottom-right
+
+// Which DOM column wrapper each quadrant belongs to, and whether it's the
+// top or bottom slot within that column's flex stack.
+var QUADRANT_COLUMN = { TL: 'col-left', BL: 'col-left', TR: 'col-right', BR: 'col-right' };
+var QUADRANT_SLOT    = { TL: 'top', BL: 'bottom', TR: 'top', BR: 'bottom' };
+
 var layoutDraft = null;
+
+function getDefaultLayout() {
+  return {
+    colLeft:    50,   // percent of total width (right col = 100 - colLeft)
+    rowTopLeft: 50,   // percent height of TL within #col-left (BL = 100 - rowTopLeft)
+    rowTopRight:40,   // percent height of TR (map) within #col-right (BR/details = 100 - rowTopRight)
+    positions: {    // which panel is in which quadrant
+      'TL': 'right-panel',
+      'TR': 'map-panel',
+      'BL': 'units-panel',
+      'BR': 'details-panel',
+    }
+  };
+}
+
+// Migrate a v2 (single shared rowTop) saved layout to the v3 per-column shape.
+function migrateLayoutCfg(cfg) {
+  if (!cfg) return cfg;
+  if (cfg.rowTopLeft === undefined && cfg.rowTopRight === undefined) {
+    var shared = (cfg.rowTop !== undefined) ? cfg.rowTop : 50;
+    cfg.rowTopLeft  = shared;
+    cfg.rowTopRight = shared;
+  }
+  delete cfg.rowTop;
+  return cfg;
+}
 
 function loadLayoutState() {
   try {
     var saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (saved) return JSON.parse(saved);
+    if (saved) return migrateLayoutCfg(JSON.parse(saved));
+    // Fall back to the old v2 key once, so existing users' column-width /
+    // panel-position choices carry forward instead of silently resetting.
+    var legacy = localStorage.getItem('cad_layout_v2');
+    if (legacy) return migrateLayoutCfg(JSON.parse(legacy));
   } catch(e) {}
   return null;
 }
@@ -5277,204 +5603,52 @@ function saveLayoutState(cfg) {
   try { localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(cfg)); } catch(e) {}
 }
 
-function getDefaultLayout() {
-  return {
-    order: ['right-panel', 'details-panel', 'units-panel'],
-    widths: { 'right-panel': 320, 'details-panel': null, 'units-panel': 290 }
-  };
-}
-
 function applyLayoutToDOM(cfg) {
   var main = document.getElementById('main');
-  if (!main) return;
+  var colLeft  = document.getElementById('col-left');
+  var colRight = document.getElementById('col-right');
+  if (!main || !colLeft || !colRight) return;
+  if (!cfg) cfg = getDefaultLayout();
 
-  var order = cfg.order || ['right-panel', 'details-panel', 'units-panel'];
-  var widths = cfg.widths || {};
+  // Apply column widths
+  var leftPct  = Math.max(20, Math.min(80, cfg.colLeft  || 50));
+  var rightPct = 100 - leftPct;
+  main.style.gridTemplateColumns = leftPct + 'fr ' + rightPct + 'fr';
 
-  // Build grid-template-columns
-  var cols = order.map(function(id) {
-    var w = widths[id];
-    if (!w || w === 'auto') return '1fr';
-    return w + 'px';
-  });
+  // Apply per-column top/bottom panel-height splits independently
+  var topPctLeft    = Math.max(15, Math.min(85, cfg.rowTopLeft  != null ? cfg.rowTopLeft  : 50));
+  var topPctRight    = Math.max(15, Math.min(85, cfg.rowTopRight != null ? cfg.rowTopRight : 50));
+  var bottomPctLeft  = 100 - topPctLeft;
+  var bottomPctRight = 100 - topPctRight;
 
-  // Ensure exactly one '1fr' (the flexible middle)
-  var hasFr = cols.some(function(c){ return c === '1fr'; });
-  if (!hasFr) {
-    // Give the second panel fr if none is flexible
-    cols[1] = '1fr';
-  }
+  // Apply panel positions: move each panel into its quadrant's column
+  // wrapper (in top→bottom DOM order) and set its height via --panel-h.
+  var pos = cfg.positions || getDefaultLayout().positions;
+  var colWrap = { 'col-left': colLeft, 'col-right': colRight };
+  var heightPct = {
+    TL: topPctLeft,    BL: bottomPctLeft,
+    TR: topPctRight,   BR: bottomPctRight,
+  };
 
-  main.style.gridTemplateColumns = cols.join(' ');
-
-  // Reorder children by moving panels into order
-  var bolosTab  = document.getElementById('tab-bolos');
-  var historyTab = document.getElementById('tab-history');
-  // Remove panels first, add back in order
-  order.forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) main.appendChild(el);
-  });
-  // Make sure bolos/history (full-width tabs) stay above
-  if (bolosTab)   main.insertBefore(bolosTab,   main.firstChild);
-  if (historyTab) main.insertBefore(historyTab, bolosTab ? bolosTab.nextSibling : main.firstChild);
-}
-
-function buildLayoutModal() {
-  var controls = document.getElementById('layout-panel-controls');
-  if (!controls) return;
-  var cfg = layoutDraft;
-  var order = cfg.order;
-  var widths = cfg.widths;
-
-  // Map IDs to panel defs
-  var panelMap = {};
-  layoutPanels.forEach(function(p){ panelMap[p.id] = p; });
-
-  var html = '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Panel Order &amp; Width</div>';
-  html += '<div id="layout-sortable" style="display:flex;flex-direction:column;gap:10px;">';
-
-  order.forEach(function(id, idx) {
-    var p = panelMap[id];
-    if (!p) return;
-    var w = widths[id];
-    var isFlexible = (!w || w === 'auto');
-    var sliderVal = isFlexible ? 500 : Math.max(200, Math.min(700, w));
-
-    html += '<div class="layout-panel-row" data-id="' + id + '" style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">';
-
-    // Header row: drag handle + label + order arrows
-    html += '<div style="display:flex;align-items:center;gap:12px;">';
-    html +=   '<span style="cursor:grab;font-size:16px;color:var(--muted);user-select:none;" title="Drag to reorder">⠿</span>';
-    html +=   '<span style="width:8px;height:8px;border-radius:50%;background:' + p.color + ';flex-shrink:0;display:inline-block;box-shadow:0 0 6px ' + p.color + '55;"></span>';
-    html +=   '<span style="font-size:13px;font-weight:700;color:#fff;flex:1;">' + p.label + '</span>';
-    html +=   '<span style="display:flex;gap:4px;">';
-    if (idx > 0) {
-      html += '<button onclick="layoutMovePanel(\'' + id + '\',-1)" class="btn btn-sm" style="padding:2px 8px;font-size:13px;line-height:1;" title="Move Left">←</button>';
-    } else {
-      html += '<button class="btn btn-sm" disabled style="padding:2px 8px;font-size:13px;line-height:1;opacity:0.2;">←</button>';
+  ['TL', 'BL', 'TR', 'BR'].forEach(function(quadrant) {
+    var panelId = pos[quadrant];
+    var el = document.getElementById(panelId);
+    if (!el) return;
+    var wrapper = colWrap[QUADRANT_COLUMN[quadrant]];
+    if (wrapper && el.parentElement !== wrapper) {
+      wrapper.appendChild(el);
+    } else if (wrapper && QUADRANT_SLOT[quadrant] === 'top') {
+      // Ensure the "top" panel is the first child in its column so DOM
+      // order matches visual order even if it was already in this wrapper.
+      wrapper.insertBefore(el, wrapper.firstChild);
     }
-    if (idx < order.length - 1) {
-      html += '<button onclick="layoutMovePanel(\'' + id + '\',1)" class="btn btn-sm" style="padding:2px 8px;font-size:13px;line-height:1;" title="Move Right">→</button>';
-    } else {
-      html += '<button class="btn btn-sm" disabled style="padding:2px 8px;font-size:13px;line-height:1;opacity:0.2;">→</button>';
-    }
-    html +=   '</span>';
-    html += '</div>';
-
-    // Width row
-    html += '<div style="display:flex;align-items:center;gap:12px;">';
-    html +=   '<span style="font-size:11px;color:var(--muted);width:44px;flex-shrink:0;">Width</span>';
-    html +=   '<label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);cursor:pointer;margin:0;text-transform:none;letter-spacing:0;">';
-    html +=     '<input type="checkbox" ' + (isFlexible ? 'checked' : '') + ' onchange="layoutToggleFlexible(\'' + id + '\',this.checked)" style="width:auto;margin:0;accent-color:var(--accent);">';
-    html +=     'Flexible (fills remaining space)';
-    html +=   '</label>';
-    html += '</div>';
-    html += '<div id="width-row-' + id.replace(/-/g,'_') + '" style="display:flex;align-items:center;gap:10px;' + (isFlexible ? 'opacity:0.35;pointer-events:none;' : '') + '">';
-    html +=   '<span style="font-size:11px;color:var(--muted);width:44px;flex-shrink:0;"></span>';
-    html +=   '<input type="range" min="180" max="700" value="' + sliderVal + '" style="flex:1;margin:0;accent-color:' + p.color + ';height:4px;cursor:pointer;" oninput="layoutSliderChange(\'' + id + '\',this.value)">';
-    html +=   '<span id="width-label-' + id.replace(/-/g,'_') + '" style="font-size:11px;font-family:monospace;color:#fff;width:46px;text-align:right;">' + sliderVal + 'px</span>';
-    html += '</div>';
-
-    html += '</div>';
+    el.style.setProperty('--panel-h', heightPct[quadrant] + '%');
   });
-
-  html += '</div>';
-  controls.innerHTML = html;
-  updateLayoutPreview();
-}
-
-function updateLayoutPreview() {
-  var cfg = layoutDraft;
-  var order = cfg.order;
-  var widths = cfg.widths;
-  var panelMap = {};
-  layoutPanels.forEach(function(p){ panelMap[p.id] = p; });
-
-  // Compute relative flex for preview
-  var totalFixed = 0;
-  var flexCount = 0;
-  order.forEach(function(id) {
-    var w = widths[id];
-    if (!w || w === 'auto') flexCount++;
-    else totalFixed += w;
-  });
-
-  var previewIds = ['preview-left','preview-mid','preview-right'];
-  var previewColors = [null, null, null];
-  var labels = ['OVERVIEW','VIEWER','UNITS'];
-
-  order.forEach(function(id, i) {
-    var p = panelMap[id];
-    var prev = document.getElementById(previewIds[i]);
-    if (!prev || !p) return;
-    var w = widths[id];
-    var flexVal = (!w || w === 'auto') ? '1' : (w / 100).toFixed(2);
-    prev.style.flex = flexVal;
-    prev.style.color = p.color;
-    prev.textContent = p.label.split(' ').map(function(w){ return w.slice(0,4).toUpperCase(); }).join(' ');
-    // update border
-    prev.style.borderRight = (i < order.length - 1) ? '1px solid var(--border)' : 'none';
-  });
-}
-
-function layoutMovePanel(id, dir) {
-  var order = layoutDraft.order;
-  var idx = order.indexOf(id);
-  if (idx === -1) return;
-  var newIdx = idx + dir;
-  if (newIdx < 0 || newIdx >= order.length) return;
-  // Swap
-  var tmp = order[idx];
-  order[idx] = order[newIdx];
-  order[newIdx] = tmp;
-  buildLayoutModal();
-}
-
-function layoutToggleFlexible(id, isFlexible) {
-  if (isFlexible) {
-    layoutDraft.widths[id] = null;
-  } else {
-    layoutDraft.widths[id] = 320;
-  }
-  var safeId = id.replace(/-/g,'_');
-  var row = document.getElementById('width-row-' + safeId);
-  if (row) {
-    row.style.opacity = isFlexible ? '0.35' : '1';
-    row.style.pointerEvents = isFlexible ? 'none' : '';
-  }
-  updateLayoutPreview();
-}
-
-function layoutSliderChange(id, val) {
-  val = parseInt(val, 10);
-  layoutDraft.widths[id] = val;
-  var safeId = id.replace(/-/g,'_');
-  var lbl = document.getElementById('width-label-' + safeId);
-  if (lbl) lbl.textContent = val + 'px';
-  updateLayoutPreview();
-}
-
-function applyLayoutPreset(preset) {
-  var cfg = getDefaultLayout();
-  if (preset === 'focused-viewer') {
-    cfg.widths = { 'right-panel': 260, 'details-panel': null, 'units-panel': 230 };
-  } else if (preset === 'wide-overview') {
-    cfg.widths = { 'right-panel': null, 'details-panel': 380, 'units-panel': 260 };
-    cfg.order = ['right-panel', 'details-panel', 'units-panel'];
-  } else if (preset === 'wide-units') {
-    cfg.widths = { 'right-panel': 280, 'details-panel': null, 'units-panel': 400 };
-  } else if (preset === 'equal') {
-    cfg.widths = { 'right-panel': null, 'details-panel': null, 'units-panel': null };
-  }
-  layoutDraft = cfg;
-  buildLayoutModal();
-  toast('📐 Preset applied — click Apply Layout to save');
 }
 
 function openLayoutModal() {
   var saved = loadLayoutState();
-  layoutDraft = JSON.parse(JSON.stringify(saved || getDefaultLayout()));
+  layoutDraft = migrateLayoutCfg(JSON.parse(JSON.stringify(saved || getDefaultLayout())));
   buildLayoutModal();
   document.getElementById('layout-modal-overlay').style.display = 'block';
 }
@@ -5494,35 +5668,212 @@ function applyAndCloseLayout() {
 function resetLayout() {
   layoutDraft = getDefaultLayout();
   buildLayoutModal();
+  applyLayoutToDOM(layoutDraft);
   toast('↺ Reset to default layout');
 }
 
-// One-time cleanup: remove any layout previously saved under the old
-// 3-panel-row Layout Customizer. Browsers that used this app before the
-// 2x2 quadrant grid existed may still have a saved entry here, and even
-// though auto-apply is now disabled above, clearing it removes any
-// possibility of stale data being read elsewhere (e.g. if the modal is
-// ever re-enabled) and keeps localStorage tidy.
+function applyLayoutPreset(preset) {
+  var cfg = getDefaultLayout();
+  if      (preset === 'wide-left')     { cfg.colLeft = 65; }
+  else if (preset === 'wide-right')    { cfg.colLeft = 35; }
+  else if (preset === 'tall-top')      { cfg.rowTopLeft = 65; cfg.rowTopRight = 65; }
+  else if (preset === 'tall-bottom')   { cfg.rowTopLeft = 35; cfg.rowTopRight = 35; }
+  else if (preset === 'focus-map')     { cfg.colLeft = 30; cfg.rowTopRight = 65; }
+  else if (preset === 'focus-details') { cfg.colLeft = 35; cfg.rowTopRight = 35; }
+  layoutDraft = cfg;
+  buildLayoutModal();
+  applyLayoutToDOM(layoutDraft);
+  toast('📐 Preset applied');
+}
+
+// ── Swap two quadrant positions in layoutDraft ───────────────
+// Panels keep their own assigned height (the height stays with the
+// quadrant SLOT, not the panel) — swapping Incidents and Map, for
+// example, means Map now takes on whatever height TL had, and vice versa.
+// This matches how the column-width/grid-area swap already behaved.
+function layoutSwapPositions(posA, posB) {
+  var tmp = layoutDraft.positions[posA];
+  layoutDraft.positions[posA] = layoutDraft.positions[posB];
+  layoutDraft.positions[posB] = tmp;
+  buildLayoutModal();
+  applyLayoutToDOM(layoutDraft);
+}
+
+// ── Slider changes ───────────────────────────────────────────
+function layoutColSlider(val) {
+  layoutDraft.colLeft = parseInt(val, 10);
+  var lbl = document.getElementById('layout-col-label');
+  if (lbl) lbl.textContent = layoutDraft.colLeft + '% / ' + (100 - layoutDraft.colLeft) + '%';
+  updateLayoutPreview();
+  applyLayoutToDOM(layoutDraft);
+}
+
+// Generic per-quadrant-column height slider — side is 'Left' or 'Right',
+// driving layoutDraft.rowTopLeft / layoutDraft.rowTopRight respectively.
+function layoutRowSlider(side, val) {
+  var key = 'rowTop' + side; // 'rowTopLeft' | 'rowTopRight'
+  layoutDraft[key] = parseInt(val, 10);
+  var lbl = document.getElementById('layout-row-label-' + side.toLowerCase());
+  if (lbl) lbl.textContent = layoutDraft[key] + '% / ' + (100 - layoutDraft[key]) + '%';
+  updateLayoutPreview();
+  applyLayoutToDOM(layoutDraft);
+}
+
+// ── Build the modal controls ─────────────────────────────────
+function buildLayoutModal() {
+  var controls = document.getElementById('layout-panel-controls');
+  if (!controls) return;
+  var cfg = layoutDraft;
+  var pos = cfg.positions;
+
+  // Build a reverse map: panelId → quadrant
+  var panelToQuad = {};
+  Object.keys(pos).forEach(function(q) { panelToQuad[pos[q]] = q; });
+
+  // Panel info map
+  var panelMap = {};
+  LAYOUT_PANELS.forEach(function(p) { panelMap[p.id] = p; });
+
+  var quadLabel = { TL: 'Top Left', TR: 'Top Right', BL: 'Bottom Left', BR: 'Bottom Right' };
+  var quadIcon  = { TL: '↖', TR: '↗', BL: '↙', BR: '↘' };
+
+  var html = '';
+
+  // ── Column width slider ──────────────────────────────────
+  html += '<div style="margin-bottom:20px;">';
+  html += '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Column Width (Left / Right)</div>';
+  html += '<div style="display:flex;align-items:center;gap:12px;">';
+  html += '<span style="font-size:11px;color:var(--muted);width:60px;flex-shrink:0;">Left col</span>';
+  html += '<input type="range" min="20" max="80" value="' + cfg.colLeft + '" style="flex:1;margin:0;accent-color:var(--accent);height:4px;cursor:pointer;" oninput="layoutColSlider(this.value)">';
+  html += '<span id="layout-col-label" style="font-size:11px;font-family:monospace;color:#fff;width:72px;text-align:right;">' + cfg.colLeft + '% / ' + (100 - cfg.colLeft) + '%</span>';
+  html += '</div>';
+  html += '</div>';
+
+  // ── Per-panel height sliders ──────────────────────────────
+  // One slider per COLUMN (left / right), each controlling the height
+  // split between that column's top and bottom panel — i.e. the height of
+  // every individual panel, since each panel occupies exactly one
+  // top-or-bottom slot in one column.
+  html += '<div style="margin-bottom:24px;">';
+  html += '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Panel Height</div>';
+
+  [
+    { side: 'Left',  key: 'rowTopLeft',  topQ: 'TL', botQ: 'BL', accent: 'var(--accent)' },
+    { side: 'Right', key: 'rowTopRight', topQ: 'TR', botQ: 'BR', accent: 'var(--green)'  }
+  ].forEach(function(col) {
+    var topPanel = panelMap[pos[col.topQ]];
+    var botPanel = panelMap[pos[col.botQ]];
+    var val = cfg[col.key] != null ? cfg[col.key] : 50;
+    html += '<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">';
+    html += '<span style="font-size:11px;color:var(--muted);width:118px;flex-shrink:0;" title="' + col.side + ' column">';
+    html += (topPanel ? topPanel.label : '?') + ' / ' + (botPanel ? botPanel.label : '?');
+    html += '</span>';
+    html += '<input type="range" min="15" max="85" value="' + val + '" style="flex:1;margin:0;accent-color:' + col.accent + ';height:4px;cursor:pointer;" oninput="layoutRowSlider(\'' + col.side + '\',this.value)">';
+    html += '<span id="layout-row-label-' + col.side.toLowerCase() + '" style="font-size:11px;font-family:monospace;color:#fff;width:72px;text-align:right;">' + val + '% / ' + (100 - val) + '%</span>';
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // ── Panel position assignment ────────────────────────────
+  html += '<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">Panel Positions — click a quadrant to swap</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">';
+
+  LAYOUT_POSITIONS.forEach(function(quadrant) {
+    var panelId = pos[quadrant];
+    var panel   = panelMap[panelId];
+    if (!panel) return;
+
+    // Build swap options — every other quadrant
+    var swapOptions = LAYOUT_POSITIONS.filter(function(q) { return q !== quadrant; });
+
+    html += '<div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:14px 16px;">';
+
+    // Quadrant label
+    html += '<div style="font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">' + quadIcon[quadrant] + ' ' + quadLabel[quadrant] + '</div>';
+
+    // Current panel badge
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">';
+    html += '<span style="width:8px;height:8px;border-radius:50%;background:' + panel.color + ';flex-shrink:0;box-shadow:0 0 6px ' + panel.color + '55;"></span>';
+    html += '<span style="font-size:13px;font-weight:700;color:#fff;">' + panel.label + '</span>';
+    html += '</div>';
+
+    // Swap buttons
+    html += '<div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Swap with:</div>';
+    html += '<div style="display:flex;gap:6px;flex-wrap:wrap;">';
+    swapOptions.forEach(function(otherQ) {
+      var otherPanel = panelMap[pos[otherQ]];
+      if (!otherPanel) return;
+      html += '<button class="btn btn-sm" style="font-size:10px;padding:3px 10px;border-color:' + otherPanel.color + ';color:' + otherPanel.color + ';" ';
+      html += 'onclick="layoutSwapPositions(\'' + quadrant + '\',\'' + otherQ + '\')">';
+      html += quadIcon[otherQ] + ' ' + otherPanel.label;
+      html += '</button>';
+    });
+    html += '</div>';
+
+    html += '</div>';
+  });
+
+  html += '</div>'; // end grid
+
+  controls.innerHTML = html;
+  updateLayoutPreview();
+}
+
+function updateLayoutPreview() {
+  if (!layoutDraft) return;
+  var pos = layoutDraft.positions;
+  var panelMap = {};
+  LAYOUT_PANELS.forEach(function(p) { panelMap[p.id] = p; });
+
+  var leftPct  = Math.max(20, Math.min(80, layoutDraft.colLeft || 50));
+  var rightPct = 100 - leftPct;
+  var topPctLeft    = Math.max(15, Math.min(85, layoutDraft.rowTopLeft  != null ? layoutDraft.rowTopLeft  : 50));
+  var topPctRight   = Math.max(15, Math.min(85, layoutDraft.rowTopRight != null ? layoutDraft.rowTopRight : 50));
+
+  var prevGrid = document.getElementById('layout-grid-preview');
+  if (prevGrid) {
+    prevGrid.style.gridTemplateColumns = leftPct + 'fr ' + rightPct + 'fr';
+    // The preview keeps a simple 2-row grid for display purposes, sized to
+    // the LEFT column's split — the per-cell heights below override this
+    // per-cell so the right column can show its own independent split.
+    prevGrid.style.gridTemplateRows = topPctLeft + 'fr ' + (100 - topPctLeft) + 'fr';
+  }
+
+  // Map quadrant → preview cell id
+  var quadToCell = {
+    'TL': document.getElementById('lprev-incidents'),
+    'TR': document.getElementById('lprev-map'),
+    'BL': document.getElementById('lprev-units'),
+    'BR': document.getElementById('lprev-details'),
+  };
+
+  var rowSpanPct = {
+    TL: topPctLeft,         BL: 100 - topPctLeft,
+    TR: topPctRight,        BR: 100 - topPctRight,
+  };
+
+  Object.keys(pos).forEach(function(quadrant) {
+    var cell = quadToCell[quadrant];
+    if (!cell) return;
+    var panel = panelMap[pos[quadrant]];
+    if (!panel) return;
+    cell.style.color = panel.color;
+    cell.textContent = panel.short + ' (' + Math.round(rowSpanPct[quadrant]) + '%)';
+  });
+}
+
+// Auto-apply saved layout on load (2x2 grid, independent panel heights)
 (function() {
-  try { localStorage.removeItem(LAYOUT_STORAGE_KEY); } catch(e) {}
+  var saved = loadLayoutState();
+  if (saved) {
+    applyLayoutToDOM(saved);
+  }
 })();
 
-// Layout Customizer auto-apply on load — DISABLED.
-// This feature predates the 2x2 quadrant grid (#right-panel / #units-panel /
-// #map-iframe / #details-panel) and was built for an old 3-panel row
-// layout. applyLayoutToDOM() sets an *inline* grid-template-columns on
-// #main (e.g. "320px 1fr 290px" from getDefaultLayout()), which overrides
-// the stylesheet's clean "1fr 1fr" 2x2 rule and silently breaks the equal
-// quadrant split — producing a narrower, uneven right column — whenever a
-// browser has any layout previously saved to localStorage. The button that
-// opens this modal (#layout-btn) is already hidden via CSS; this stops the
-// leftover saved data from corrupting the grid on every subsequent load.
-// The modal/preset code below is left in place but is now unreachable.
+
+// One-time cleanup of old layout key
 (function() {
-  // var saved = loadLayoutState();
-  // if (saved) {
-  //   applyLayoutToDOM(saved);
-  // }
+  try { localStorage.removeItem('cad_layout_v1'); } catch(e) {}
 })();
 
 // ═══════════════════════════════════════════════════════════
@@ -5711,39 +6062,42 @@ function cliLocationKey(e) {
 
 // --- Map iframe resize nudge ---
 // The embedded map (CoreOneMap.html, typically Leaflet) only knows its
-// canvas size at the moment it first loads. If the #map-iframe quadrant
-// later changes size (window resize, switching nav tabs, the details
-// panel's content pushing layout, etc.) without a reload, Leaflet's
-// internal canvas can keep its old dimensions and leave blank/dead space
-// inside the iframe instead of filling the new box. A ResizeObserver on
-// #main re-fires a resize signal any time the grid's box changes, which
-// lets a Leaflet-based child page recalculate via its own 'resize'
-// listener (the standard way Leaflet apps listen for this).
+// canvas size at the moment it first loads. If the #map-panel quadrant
+// later changes size (window resize, switching nav tabs, details panel
+// expansion, etc.) without a reload, Leaflet's internal canvas can keep
+// its old dimensions and leave blank/dead space. A ResizeObserver on
+// #map-panel re-fires a resize signal whenever the panel box changes.
+// When the map is popped out (mapIsPopped=true) the iframe is hidden —
+// nudge is skipped to avoid errors on the blank iframe.
 (function () {
-  var mapFrame = document.getElementById('map-iframe');
-  var mainEl = document.getElementById('main');
-  if (!mapFrame || !mainEl || typeof ResizeObserver === 'undefined') return;
+  var mapPanel = document.getElementById('map-panel');
+  var mainEl   = document.getElementById('main');
+  if (!mapPanel || !mainEl || typeof ResizeObserver === 'undefined') return;
 
   function nudgeMapResize() {
+    if (typeof mapIsPopped !== 'undefined' && mapIsPopped) return;
+    var mapFrame = document.getElementById('map-iframe');
+    if (!mapFrame || mapFrame.style.display === 'none') return;
     try {
       if (mapFrame.contentWindow) {
         mapFrame.contentWindow.dispatchEvent(new Event('resize'));
       }
     } catch (e) {
-      // Cross-origin or not-yet-loaded; ignore — same-origin relative
-      // iframes (the normal case here) will succeed.
+      // Cross-origin or not-yet-loaded; ignore.
     }
   }
 
-  mapFrame.addEventListener('load', nudgeMapResize);
+  // Re-nudge whenever the iframe itself (re)loads
+  mapPanel.addEventListener('load', function(e) {
+    if (e.target && e.target.id === 'map-iframe') nudgeMapResize();
+  }, true);
 
   var resizeRaf = null;
   var ro = new ResizeObserver(function () {
     if (resizeRaf) cancelAnimationFrame(resizeRaf);
-    // Debounce to the next frame so rapid layout thrashing (e.g. during
-    // a window drag) only triggers one recalculation per frame.
     resizeRaf = requestAnimationFrame(nudgeMapResize);
   });
+  ro.observe(mapPanel);
   ro.observe(mainEl);
 })();
 </script>

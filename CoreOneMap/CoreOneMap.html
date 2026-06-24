@@ -237,19 +237,13 @@
     }
 
     function postMessageToCAD(message) {
+        // Popup mode: window.opener is the CAD window
         if (window.opener && !window.opener.closed) {
             try {
                 window.opener.postMessage(message, '*');
-                // Only window.focus() is safe to call cross-origin — accessing
-                // .document on a cross-origin window throws immediately, so we
-                // don't even attempt it here.
-                try {
-                    window.opener.focus();
-                } catch (ignore) {}
+                try { window.opener.focus(); } catch (ignore) {}
                 setTimeout(function() {
-                    try {
-                        window.opener.focus();
-                    } catch (ignore) {}
+                    try { window.opener.focus(); } catch (ignore) {}
                 }, 100);
                 return true;
             } catch (err) {
@@ -257,18 +251,22 @@
             }
         }
 
-        const cadWindow = window.open('', 'CoreOneCADWindow', 'width=1200,height=800,left=100,top=100,popup=1,noopener=0');
+        // Embedded iframe mode: window.parent is the CAD window
+        if (window.parent && window.parent !== window) {
+            try {
+                window.parent.postMessage(message, '*');
+                return true;
+            } catch (err) {
+                console.warn('Unable to send message to parent window', err);
+            }
+        }
+
+        // Last resort: find named CAD window
+        const cadWindow = window.open('', 'CoreOneCADWindow', '');
         if (cadWindow && !cadWindow.closed) {
             try {
                 cadWindow.postMessage(message, '*');
-                try {
-                    cadWindow.focus();
-                } catch (ignore) {}
-                setTimeout(function() {
-                    try {
-                        cadWindow.focus();
-                    } catch (ignore) {}
-                }, 100);
+                try { cadWindow.focus(); } catch (ignore) {}
                 return true;
             } catch (err) {
                 console.warn('Unable to send message to named CAD window', err);
@@ -280,11 +278,22 @@
 
     function requestIncidentSync() {
         const request = { type: 'requestIncidentSync' };
-        const sent = postMessageToCAD(request);
-        if (sent) {
-            showStatus('Requesting CAD incident sync...');
+        // When embedded as an iframe, window.opener is null — use window.parent instead.
+        // When running as a popup, window.opener is the CAD window — use that.
+        // Try opener first (popup mode), then parent (embedded mode).
+        const target = (window.opener && !window.opener.closed) ? window.opener
+                      : (window.parent && window.parent !== window) ? window.parent
+                      : null;
+        if (target) {
+            try {
+                target.postMessage(request, '*');
+                showStatus('Syncing with CAD...');
+                return true;
+            } catch (err) {
+                console.warn('requestIncidentSync: postMessage failed', err);
+            }
         }
-        return sent;
+        return false;
     }
 
     function createIncidentAtLocation(postal, latlng) {
@@ -382,8 +391,33 @@
     function getIncidentEmoji(incidentType) {
         if (!incidentType || typeof incidentType !== 'string') return '📍';
         const upper = incidentType.toUpperCase();
-        if (upper.includes('FIRE') || upper.includes('STRUCTURE') || upper.includes('FLAMES')) return '🔥';
-        if (upper.includes('LAW') || upper.includes('POLICE') || upper.includes('TRAFFIC') || upper.includes('ARREST') || upper.includes('ASSAULT') || upper.includes('THEFT') || upper.includes('ROBBERY')) return '🚔';
+        // Fire / EMS
+        if (upper.includes('FIRE') || upper.includes('STRUCTURE') || upper.includes('FLAMES') ||
+            upper.includes('BRUSH') || upper.includes('WILDFIRE') || upper.includes('VEHICLE FIRE') ||
+            upper.includes('ARSON')) return '🔥';
+        if (upper.includes('EMS') || upper.includes('MEDICAL') || upper.includes('CARDIAC') ||
+            upper.includes('TRAUMA') || upper.includes('OVERDOSE') || upper.includes('RESCUE') ||
+            upper.includes('AMBULANCE')) return '🚑';
+        // Law enforcement
+        if (upper.includes('PURSUIT') || upper.includes('CHASE')) return '🚔';
+        if (upper.includes('SHOOTING') || upper.includes('SHOTS FIRED') || upper.includes('FIREARM') ||
+            upper.includes('WEAPON')) return '🔫';
+        if (upper.includes('STABBING') || upper.includes('KNIFE')) return '🔪';
+        if (upper.includes('ROBBERY') || upper.includes('ARMED ROB')) return '🦹';
+        if (upper.includes('THEFT') || upper.includes('BURGLARY') || upper.includes('LARCENY') ||
+            upper.includes('SHOPLIFTING')) return '🛒';
+        if (upper.includes('ASSAULT') || upper.includes('FIGHT') || upper.includes('BATTERY')) return '👊';
+        if (upper.includes('DOMESTIC') || upper.includes('DV')) return '🏠';
+        if (upper.includes('TRAFFIC') || upper.includes('MVA') || upper.includes('ACCIDENT') ||
+            upper.includes('CRASH') || upper.includes('COLLISION')) return '🚗';
+        if (upper.includes('DUI') || upper.includes('DWI') || upper.includes('DRUNK')) return '🍺';
+        if (upper.includes('MISSING') || upper.includes('RUNAWAY') || upper.includes('ABDUCTION')) return '🔍';
+        if (upper.includes('ARREST') || upper.includes('WARRANT')) return '⛓️';
+        if (upper.includes('LAW') || upper.includes('POLICE') || upper.includes('DISPATCH')) return '🚔';
+        // Hazmat / other
+        if (upper.includes('HAZMAT') || upper.includes('SPILL') || upper.includes('CHEMICAL')) return '☣️';
+        if (upper.includes('FLOOD') || upper.includes('WATER') || upper.includes('SWIFT WATER')) return '🌊';
+        if (upper.includes('GAS') || upper.includes('NATURAL GAS') || upper.includes('PROPANE')) return '💨';
         return '📍';
     }
 
@@ -394,21 +428,24 @@
         
         const seenIds = new Set();
         incidents.forEach(incident => {
-            if (!incident.location || typeof incident.location !== 'string') return;
-            
-            const postalMatch = incident.location.match(/\b(\d{3})\b/);
-            if (!postalMatch) return;
-            
-            const postal = postalMatch[1];
+            // Prefer the structured postal from locationObj (set by dropdown selection
+            // in CAD). Fall back to regex extraction from the raw location string —
+            // same fallback path used by sendPostalToEmbeddedMap in CAD.html.
+            let postal = null;
+            if (incident.locationObj && incident.locationObj.postal) {
+                postal = String(incident.locationObj.postal).trim().padStart(3, '0');
+            } else if (incident.location && typeof incident.location === 'string') {
+                const postalMatch = incident.location.match(/\b(\d{3})\b/);
+                if (postalMatch) postal = postalMatch[1].padStart(3, '0');
+            }
+
+            if (!postal) return;
             const entry = POSTAL_LOOKUP[postal];
             if (!entry) return;
-            
+
             seenIds.add(incident.id);
 
-            // Skip the rebuild entirely if nothing about this incident has
-            // changed since last sync. Tearing down and recreating a marker
-            // + popup for every incident on every sync is the main cost when
-            // there are many active calls, even after debouncing on the CAD side.
+            // Skip rebuild if nothing changed since last sync
             const signature = JSON.stringify(incident);
             if (incidentMarkers[incident.id] && incidentMarkerSignatures[incident.id] === signature) {
                 return;
@@ -417,13 +454,13 @@
             
             const [px, py] = worldToPixel(entry.x, entry.y);
             const latlng = map.unproject([px, py], 0);
+            // Use pre-resolved emoji from CAD (buildMapIncidents sets it via
+            // getMapIncidentEmoji which has full type coverage). Fall back to
+            // local getIncidentEmoji for any edge case.
             const emoji = incident.emoji || getIncidentEmoji(incident.type);
             
-            // Update or create marker
             if (incidentMarkers[incident.id]) {
-                // Update position and icon
-                const oldMarker = incidentMarkers[incident.id];
-                incidentMarkersLayer.removeLayer(oldMarker);
+                incidentMarkersLayer.removeLayer(incidentMarkers[incident.id]);
             }
             
             const marker = L.marker(latlng, {
@@ -451,7 +488,7 @@
             incidentMarkers[incident.id] = marker;
         });
         
-        // Remove markers for incidents that no longer exist
+        // Remove markers for closed incidents
         Object.keys(incidentMarkers).forEach(id => {
             if (!seenIds.has(id)) {
                 incidentMarkersLayer.removeLayer(incidentMarkers[id]);
