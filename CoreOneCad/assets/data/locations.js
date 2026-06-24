@@ -213,7 +213,7 @@ var LOCATIONS = [
   { postal: "207", road: "Fort Zancudo Approach Road", crossStreet: null, landmark: "Fort Zancudo Military Base", area: "Fort Zancudo", region: "W - Fort Zancudo / Tongva / Richman", x: -1806.94, y: 3231.34 },
   { postal: "208", road: "Fort Zancudo Approach Road", crossStreet: null, landmark: "Fort Zancudo Military Base", area: "Fort Zancudo", region: "W - Fort Zancudo / Tongva / Richman", x: -1893.32, y: 3137.5 },
   { postal: "209", road: "Fort Zancudo Approach Road", crossStreet: null, landmark: "Fort Zancudo Military Base", area: "Fort Zancudo", region: "W - Fort Zancudo / Tongva / Richman", x: -1769.69, y: 3075.26 },
-  { postal: "210", road: "Fort Zancudo Approach Road", crossStreet: null, landmark: "Fort Zancudo Approach Road East Gate", area: "Fort Zancudo", region: "W - Fort Zancudo / Tongva / Richman", x: -1676.56, y: 2875.06 },
+  { postal: "210", road: "U.S. Route 68", crossStreet: null, landmark: "Fort Zancudo Approach Road East Gate", area: "Fort Zancudo", region: "W - Fort Zancudo / Tongva / Richman", x: -1676.56, y: 2875.06 },
   { postal: "211", road: "Fort Zancudo Approach Road", crossStreet: null, landmark: "Fort Zancudo Military Base", area: "Fort Zancudo", region: "W - Fort Zancudo / Tongva / Richman", x: -1826.59, y: 2948.89 },
   { postal: "212", road: "Fort Zancudo Approach Road", crossStreet: null, landmark: "Fort Zancudo Military Base", area: "Fort Zancudo", region: "W - Fort Zancudo / Tongva / Richman", x: -1852.17, y: 2800.7 },
   { postal: "213", road: "Fort Zancudo Approach Road", crossStreet: null, landmark: "Fort Zancudo Military Base", area: "Fort Zancudo", region: "W - Fort Zancudo / Tongva / Richman", x: -2006.89, y: 2936.98 },
