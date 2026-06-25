@@ -29,9 +29,7 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   
   html {
-    zoom: 0.9; /* Replicates the look of the browser at 90% zoom (Ctrl -) */
-    height: 111.112vh;  /* 100/0.9 — pre-inflate so the 0.9 zoom shrinks it back to exactly 100vh, filling the real viewport with no leftover bar */
-    width: 111.112vw;
+    height: 100%;
     overflow: hidden;
   }
   
@@ -45,10 +43,21 @@
     letter-spacing: 0.2px;
   }
   
+  /* Replicates the look of the browser at 90% zoom (Ctrl -), but via a
+     GPU-composited transform instead of CSS `zoom`. `zoom` is not part of
+     any spec, is not hardware-accelerated, and forces a layout/coordinate
+     remap on every descendant — including cross-document iframes like
+     #map-iframe. Leaflet's drag/pan handlers read pointer coordinates on
+     every mousemove, so that remap cost compounds across a drag gesture
+     and shows up as visible lag. `transform: scale()` produces the same
+     visual result without touching layout or iframe input coordinates. */
   #app {
     display: grid;
     grid-template-rows: 52px 70px 1fr 34px;
-    height: 100%;
+    height: 111.112%;   /* 100/0.9 — pre-inflate so the 0.9 scale shrinks it back to exactly 100%, filling the viewport with no leftover bar */
+    width: 111.112%;
+    transform: scale(0.9);
+    transform-origin: top left;
   }
 
   /* ── Bottom utility footer bar ── */
@@ -668,6 +677,11 @@
   .call-body { padding: 12px 14px; 2px }
   .call-loc { font-size: 12px; color: var(--amber); margin-bottom: -2px; font-weight: 500;  margin-left: -40px; padding-left: 30px; border-left: 3px solid transparent; }
   .call-units { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+  #call-units-container.drag-over {
+    outline: 2px dashed var(--accent) !important;
+    background: var(--bg4) !important;
+  }
   
   .call-unit-tag {
     border-radius: 4px;
@@ -685,6 +699,8 @@
   .call-unit-tag:not(.tag-expanded):hover {
     filter: brightness(1.35);
     border-color: var(--accent);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
   }
 
   .call-unit-tag.tag-expanded {
@@ -714,9 +730,9 @@
   }
   .tag-status-grid.grid-3col { grid-template-columns: repeat(3, 1fr); }
   .tag-status-btn {
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 700;
-    padding: 4px 4px;
+    padding: 5px 4px;
     border-radius: 3px;
     border: 1px solid rgba(255,255,255,0.1);
     background: rgba(255,255,255,0.05);
@@ -726,9 +742,13 @@
     transition: all 0.1s ease;
     font-family: 'Consolas', monospace;
     letter-spacing: 0.3px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.2;
+    min-height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
   .tag-status-btn:hover { filter: brightness(1.35); border-color: rgba(255,255,255,0.35); }
   .tag-status-btn.active-status { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; font-weight: 800; }
@@ -817,11 +837,30 @@
     text-overflow: ellipsis;
     z-index: 5;
   }
-  .incidents-table th.col-incno { width: 17%; }
-  .incidents-table th.col-code { width: 13%; }
-  .incidents-table th.col-pri { width: 14%; }
-  .incidents-table th.col-loc { width: 30%; }
-  .incidents-table th.col-units { width: 26%; }
+  .incidents-table th.col-incno { width: 10%; }
+  .incidents-table th.col-code { width: 15%; }
+  .incidents-table th.col-pri { width: 12%; }
+  .incidents-table th.col-loc { width: 40%; }
+  .incidents-table th.col-units { width: 30%; }
+
+  .incidents-table thead th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s, background-color 0.15s;
+  }
+  .incidents-table thead th.sortable:hover {
+    color: var(--text);
+    background: #131a28;
+  }
+  .incidents-table thead th.sortable.sort-active { color: var(--accent); }
+  .incidents-table thead th .sort-arrow {
+    display: inline-block;
+    margin-left: 3px;
+    font-size: 8px;
+    opacity: 0.35;
+    letter-spacing: 0;
+  }
+  .incidents-table thead th.sort-active .sort-arrow { opacity: 1; }
 
   .incidents-table tbody tr.incident-row {
     cursor: pointer;
@@ -898,13 +937,8 @@
     gap: 0;
     overflow: hidden;
   }
-  .units-col {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-  }
+  .units-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .units-col.units-col-active { flex: 1.06 1 0; }
   .units-col:not(:last-child) { border-right: 1px solid var(--border); }
 
   .units-col-header {
@@ -950,9 +984,26 @@
     text-overflow: ellipsis;
     z-index: 4;
   }
-  .units-mini-table th.ucol-th-unit { width: 30%; }
-  .units-mini-table th.ucol-th-status { width: 30%; }
+  .units-mini-table th.ucol-th-unit { width: 24%; }
+  .units-mini-table th.ucol-th-status { width: 17%; }
+  .units-mini-table th.ucol-th-dept { width: 15%; }
   .units-mini-table th.ucol-th-wide { width: auto; }
+
+  .units-mini-table thead th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: color 0.15s, background-color 0.15s;
+  }
+  .units-mini-table thead th.sortable:hover { color: var(--text); background: #131a28; }
+  .units-mini-table thead th.sortable.sort-active { color: var(--accent); }
+  .units-mini-table thead th .sort-arrow {
+    display: inline-block;
+    margin-left: 2px;
+    font-size: 8px;
+    opacity: 0.35;
+    letter-spacing: 0;
+  }
+  .units-mini-table thead th.sort-active .sort-arrow { opacity: 1; }
 
   .units-mini-table tbody tr.unit-row {
     cursor: grab;
@@ -990,10 +1041,9 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .units-mini-table td.ucol-td-meta .dept-law,
-  .units-mini-table td.ucol-td-meta .dept-fire { margin-right: 4px; }
-  .units-mini-table td.ucol-td-status { padding: 6px 6px; }
-  .units-mini-table td.ucol-td-status .unit-status { font-size: 8px; padding: 2px 5px; }
+  .units-mini-table td.ucol-td-dept { padding: 6px 4px; text-align: left; }
+  .units-mini-table td.ucol-td-status { padding: 6px 4px; text-align: left; }
+  .units-mini-table td.ucol-td-status .unit-status { font-size: 8px; padding: 2px 6px; display: inline-block; }
   .units-mini-table td.ucol-td-incident {
     font-size: 10px;
     color: var(--accent);
@@ -1132,11 +1182,11 @@
 .call-units {
     display: flex;
     flex-wrap: wrap;
-    gap: 7px;
+    gap: 6px;
     margin-top: 2px;
-    padding: 8px 12px 8px;
-    border-top:  1px solid rgba(255,255,255,.05);
-    background: transparent;
+    padding: 10px 12px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 8px;
 }
 
   #toast {
@@ -1261,11 +1311,11 @@
         <table class="incidents-table">
           <thead>
             <tr>
-              <th class="col-incno">Incident No.</th>
-              <th class="col-code">Code</th>
-              <th class="col-pri">Priority</th>
-              <th class="col-loc">Location</th>
-              <th class="col-units">Units</th>
+              <th class="col-incno sortable" id="th-sort-incno" onclick="setCallSort('incno')">Incident No. <span class="sort-arrow" id="sort-arrow-incno"></span></th>
+              <th class="col-code sortable" id="th-sort-code" onclick="setCallSort('code')">Code <span class="sort-arrow" id="sort-arrow-code"></span></th>
+              <th class="col-pri sortable" id="th-sort-pri" onclick="setCallSort('pri')">Priority <span class="sort-arrow" id="sort-arrow-pri"></span></th>
+              <th class="col-loc sortable" id="th-sort-loc" onclick="setCallSort('loc')">Location <span class="sort-arrow" id="sort-arrow-loc"></span></th>
+              <th class="col-units sortable" id="th-sort-units" onclick="setCallSort('units')">Units <span class="sort-arrow" id="sort-arrow-units"></span></th>
             </tr>
           </thead>
           <tbody id="calls-list"></tbody>
@@ -1298,16 +1348,16 @@
         <div class="units-col-header units-col-header-avail">Avail <span class="sub-badge-count" id="ucol-available-count">(0)</span></div>
         <div class="units-col-scroll">
           <table class="units-mini-table">
-            <thead><tr><th class="ucol-th-unit">Unit</th><th class="ucol-th-wide">Capabilities/Dept</th></tr></thead>
+            <thead><tr><th class="ucol-th-dept"></th><th class="ucol-th-unit">Unit</th><th class="ucol-th-wide">Capabilities/Dept</th></tr></thead>
             <tbody id="units-col-available"></tbody>
           </table>
         </div>
       </div>
-      <div class="units-col">
+      <div class="units-col units-col-active">
         <div class="units-col-header units-col-header-active">Active <span class="sub-badge-count" id="ucol-active-count">(0)</span></div>
         <div class="units-col-scroll">
           <table class="units-mini-table">
-            <thead><tr><th class="ucol-th-unit">Unit</th><th class="ucol-th-status">Status</th><th class="ucol-th-wide">Incident</th></tr></thead>
+            <thead><tr><th class="ucol-th-unit sortable" id="th-active-unit-sort" onclick="setActiveUnitSort()" title="Sort by last update from dispatcher">Unit <span class="sort-arrow" id="active-unit-sort-arrow">⇕</span></th><th class="ucol-th-status">Status</th><th class="ucol-th-wide">Incident</th></tr></thead>
             <tbody id="units-col-activegrp"></tbody>
           </table>
         </div>
@@ -1316,7 +1366,7 @@
         <div class="units-col-header units-col-header-unavail">Unavail <span class="sub-badge-count" id="ucol-unavailable-count">(0)</span></div>
         <div class="units-col-scroll">
           <table class="units-mini-table">
-            <thead><tr><th class="ucol-th-unit">Unit</th><th class="ucol-th-wide">Capabilities/Dept</th></tr></thead>
+            <thead><tr><th class="ucol-th-dept"></th><th class="ucol-th-unit">Unit</th><th class="ucol-th-wide">Capabilities/Dept</th></tr></thead>
             <tbody id="units-col-unavailable"></tbody>
           </table>
         </div>
@@ -1357,6 +1407,15 @@
 </div>
 
 <div id="toast"></div>
+
+<!-- ── Unit Tag Status Modal — opened from a unit chip on the Incident
+     Overview row or the call profile's Units section. Centered dialog
+     instead of an inline expansion, so the picker only ever appears in
+     the one place it was actually clicked, regardless of how many tables
+     happen to be showing the same unit/call combination at once. ── -->
+<div id="unit-tag-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9000;backdrop-filter:blur(4px);" onclick="closeUnitTagModal(event)">
+  <div id="unit-tag-modal" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:360px;max-width:92vw;max-height:85vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,0.7);z-index:9001;" onclick="event.stopPropagation()"></div>
+</div>
 
 <!-- ── Layout Customizer Modal (2×2 Grid) ── -->
 <div id="layout-modal-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9000;backdrop-filter:blur(4px);" onclick="closeLayoutModal(event)">
@@ -1464,12 +1523,33 @@ const STATUS_GROUP_MAP = {
   'on scene': 'Active', 'on scene ok': 'Active', 'transporting': 'Active', 'transport complete': 'Active',
   'administrative': 'Unavailable', 'unavailable': 'Unavailable', 'out of service': 'Unavailable'
 };
+// Shorthand codes shown in the compact Active Units mini-table status column,
+// matching the codes already taught in the in-app CLI documentation
+// (see "Status Change Macros" table) and the status dropdown option labels.
+const STATUS_SHORTHAND = {
+  'available': 'AV',
+  'available in quarters': 'AIQ',
+  'available on radio': 'AOR',
+  'dispatched': 'D',
+  'en route': 'DE',
+  'in the area': 'ITA',
+  'staging': 'STG',
+  'on scene': 'OS',
+  'on scene ok': 'OK',
+  'transporting': 'TR',
+  'transport complete': 'TRC',
+  'administrative': 'ADM',
+  'unavailable': 'X',
+  'out of service': 'OOS'
+};
+
 const UNIT_GROUP_ORDER = ['Available', 'Active', 'Unavailable'];
 let unitGroupCollapsed = { 'Available': false, 'Active': false, 'Unavailable': false };
 
-let expandedUnitTagId = null; // tracks which unit tag is open on which call: "callId__unitId"
+let unitTagModal = null; // { unitId, callId } when the unit-tag status modal is open, else null
 let expandedUnitStatusId = null; // tracks which unit card's status picker is open in Unit Overview (unit.id, or "composite_<groupId>")
 let vehSectionOpen = true;   // vehicles section collapsed state
+let unitsSectionOpen = true; // call-profile units section collapsed state
 let perSectionOpen = true;   // persons section collapsed state
 let vehIdx = {};             // { callId: currentIndex }
 let perIdx = {};             // { callId: currentIndex }
@@ -1477,31 +1557,31 @@ let perIdx = {};             // { callId: currentIndex }
 // Statuses shown in the tag picker — grouped by operational relevance
 // AVAILABLE is NOT here — it lives as the separate "CLEAR UNIT" action
 const TAG_PICKER_STATUSES = [
-  { label: 'DE',    value: 'en route',          log: false },
-  { label: 'ITA',   value: 'in the area',        log: false },
-  { label: 'STG',   value: 'staging',            log: true  },
-  { label: 'OS',    value: 'on scene',           log: true  },
-  { label: 'OK',    value: 'on scene ok',        log: true  },
-  { label: 'TR',    value: 'transporting',       log: true  },
-  { label: 'TRC',   value: 'transport complete', log: true  },
+  { label: 'EN ROUTE',          value: 'en route',          log: false },
+  { label: 'IN THE AREA',       value: 'in the area',        log: false },
+  { label: 'STAGING',           value: 'staging',            log: true  },
+  { label: 'ON SCENE',          value: 'on scene',           log: true  },
+  { label: 'ON SCENE OK',       value: 'on scene ok',        log: true  },
+  { label: 'TRANSPORTING',      value: 'transporting',       log: true  },
+  { label: 'TRANSPORT COMPLETE',value: 'transport complete', log: true  },
 ];
 
 // Full status list for the Unit Overview status picker — covers every status a unit can hold,
 // including the Available and Unavailable groups (not just the operational/incident statuses).
 const OVERVIEW_PICKER_STATUSES = [
-  { label: 'AV',     value: 'available',             log: true  },
-  { label: 'AIQ',    value: 'available in quarters', log: true  },
-  { label: 'AOR',    value: 'available on radio',    log: true  },
-  { label: 'DE',     value: 'en route',              log: false },
-  { label: 'ITA',    value: 'in the area',           log: false },
-  { label: 'STG',    value: 'staging',               log: true  },
-  { label: 'OS',     value: 'on scene',              log: true  },
-  { label: 'OK',     value: 'on scene ok',           log: true  },
-  { label: 'TR',     value: 'transporting',          log: true  },
-  { label: 'TRC',    value: 'transport complete',    log: true  },
-  { label: 'ADM',    value: 'administrative',        log: true  },
-  { label: 'X',      value: 'unavailable',           log: true  },
-  { label: 'OOS',    value: 'out of service',        log: true  },
+  { label: 'AVAILABLE',          value: 'available',             log: true  },
+  { label: 'AVAIL. IN QUARTERS', value: 'available in quarters', log: true  },
+  { label: 'AVAIL. ON RADIO',    value: 'available on radio',    log: true  },
+  { label: 'EN ROUTE',           value: 'en route',              log: false },
+  { label: 'IN THE AREA',        value: 'in the area',           log: false },
+  { label: 'STAGING',            value: 'staging',               log: true  },
+  { label: 'ON SCENE',           value: 'on scene',              log: true  },
+  { label: 'ON SCENE OK',        value: 'on scene ok',           log: true  },
+  { label: 'TRANSPORTING',       value: 'transporting',          log: true  },
+  { label: 'TRANSPORT COMPLETE', value: 'transport complete',    log: true  },
+  { label: 'ADMINISTRATIVE',     value: 'administrative',        log: true  },
+  { label: 'UNAVAILABLE',        value: 'unavailable',           log: true  },
+  { label: 'OUT OF SERVICE',     value: 'out of service',        log: true  },
 ];
 
 // Builds the shared status-picker markup (status grid + clear/available action) used by
@@ -1547,11 +1627,125 @@ function renderUnitStatusPicker(currentStatus, statusClickFn, clearClickAttr, cl
   `;
 }
 
-function toggleUnitTagExpand(event, unitId, callId) {
+function openUnitTagModal(event, unitId, callId) {
   event.stopPropagation();
-  var key = callId + '__' + unitId;
-  expandedUnitTagId = (expandedUnitTagId === key) ? null : key;
+  unitTagModal = { unitId: unitId, callId: callId };
   renderCAD();
+}
+
+function closeUnitTagModal(event) {
+  // Allow direct calls (no event) e.g. from picker buttons, or backdrop clicks.
+  // Guard: if called from a click event, only close when the backdrop itself was clicked.
+  if (event && event.target && event.target.id !== 'unit-tag-modal-overlay') return;
+  unitTagModal = null;
+  renderCAD();
+}
+
+// Builds the live content of the unit-tag status modal from unitTagModal
+// ({unitId, callId} or null) and shows/hides the overlay accordingly. Called
+// at the end of every renderCAD() pass so the modal — if open — always
+// reflects the unit's current status, even if it changed via some other
+// path (CLI macro, Unit Overview picker, etc.) while the modal was up.
+function renderUnitTagModal() {
+  const overlay = document.getElementById('unit-tag-modal-overlay');
+  const body = document.getElementById('unit-tag-modal');
+  if (!overlay || !body) return;
+
+  if (!unitTagModal) {
+    overlay.style.display = 'none';
+    body.innerHTML = '';
+    return;
+  }
+
+  const unit = state.units.find(u => u.id === unitTagModal.unitId);
+  if (!unit) {
+    // Unit no longer exists (e.g. logged off while the modal was open) — close gracefully.
+    unitTagModal = null;
+    overlay.style.display = 'none';
+    body.innerHTML = '';
+    return;
+  }
+
+  const statusClass = STATUS_STYLES[unit.status] || 's-unavailable';
+  const callId = unitTagModal.callId;
+  const isOverview = !callId;
+
+  const pickerHtml = isOverview
+    ? renderUnitStatusPicker(
+        unit.status,
+        (s) => `setUnitStatusFromOverview(event,'${unit.id}','${s.value}',${s.log});closeUnitTagModal()`,
+        `clearUnitFromOverview(event,'${unit.id}');closeUnitTagModal()`,
+        unit.assignedCall ? 'CLEAR UNIT' : 'SET AVAILABLE',
+        unit.assignedCall ? 'Clear unit from this incident' : 'Set unit to available',
+        OVERVIEW_PICKER_STATUSES,
+        true
+      )
+    : renderUnitStatusPicker(
+        unit.status,
+        (s) => `setUnitStatusFromTag(event,'${unit.callsign}','${s.value}','${callId}',${s.log})`,
+        `removeUnitFromTag(event,'${unit.callsign}','${callId}')`,
+        'CLEAR UNIT',
+        'Clear unit from this incident'
+      );
+
+  const deptColor = unit.dept === 'Law' ? 'var(--accent)' : unit.dept === 'Fire' ? 'var(--red)' : 'var(--muted)';
+  const deptBg   = unit.dept === 'Law' ? 'rgba(0,210,255,0.1)' : unit.dept === 'Fire' ? 'rgba(255,85,85,0.1)' : 'rgba(98,114,164,0.1)';
+
+  // Overview modal: show name, dept/agency, caps
+  const overviewInfoHtml = isOverview ? `
+    <div style="padding:10px 18px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:rgba(0,0,0,0.15);">
+      ${unit.name ? `<span style="font-size:11px;color:var(--text);font-weight:600;">${unit.name}</span>` : ''}
+      ${unit.dept ? `<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:3px;background:${deptBg};color:${deptColor};">${unit.dept.toUpperCase()}${unit.agency ? ' · ' + unit.agency : ''}</span>` : ''}
+      ${unit.caps && unit.caps.length ? unit.caps.map(c => `<span style="font-size:9px;color:var(--muted);background:rgba(255,255,255,0.05);border:1px solid var(--border);padding:1px 6px;border-radius:3px;">${c}</span>`).join('') : ''}
+    </div>` : '';
+
+  // Tag modal: show officer name + which incident they're on (if any)
+  const assignedCall = unit.assignedCall ? state.calls.find(c => c.id === unit.assignedCall) : null;
+  const tagInfoHtml = !isOverview ? `
+    <div style="padding:8px 18px;border-bottom:1px solid var(--border);display:flex;gap:12px;align-items:center;background:rgba(0,0,0,0.15);flex-wrap:wrap;">
+      ${unit.name ? `<span style="font-size:11px;color:var(--text);font-weight:600;">${unit.name}</span>` : ''}
+      ${assignedCall ? `<span style="font-size:10px;color:var(--muted);">📋 <span style="color:var(--accent);font-weight:700;">#${assignedCall.id}</span>${assignedCall.type ? ' · ' + assignedCall.type.replace(/\s*\([^)]*\)$/, '').trim() : ''}</span>` : ''}
+    </div>` : '';
+
+  body.innerHTML = `
+    <div style="padding:16px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3);border-radius:12px 12px 0 0;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <strong style="font-size:15px;color:#fff;">${unit.callsign || '---'}</strong>
+        <span class="unit-status ${statusClass}" style="font-size:9px;">${unit.status.toUpperCase()}</span>
+      </div>
+      <button onclick="closeUnitTagModal()" style="background:none;border:none;color:var(--muted);font-size:20px;cursor:pointer;padding:4px 8px;border-radius:4px;line-height:1;">✕</button>
+    </div>
+    ${isOverview ? overviewInfoHtml : tagInfoHtml}
+    <div style="padding:16px 18px;">
+      ${pickerHtml}
+    </div>
+  `;
+  overlay.style.display = 'block';
+}
+
+// Renders the assigned-unit chips for a call — callsign tags, color-coded by
+// status. Clicking a chip opens the shared unit-tag status modal (rather than
+// expanding inline), so the picker only ever appears in one place regardless
+// of which table/section the chip was clicked from. Shared by the Incident
+// Overview row's Units column and the call profile's Units section.
+function renderCallUnitTags(call) {
+  if (!call.assigned || !call.assigned.length) return '';
+  return call.assigned.map(uid => {
+    const u = state.units.find(x => x.id === uid);
+    if (!u) return '';
+    const statusClass = STATUS_STYLES[u.status] || 's-unavailable';
+    return `
+      <span class="call-unit-tag ${statusClass}" onclick="openUnitTagModal(event,'${u.id}','${call.id}')" title="Click to change status">
+        ${u.callsign}
+      </span>`;
+  }).join('');
+}
+
+// Stamps the moment a dispatcher last changed this unit's status — used to
+// sort the Active units mini-table by "last update by dispatcher". Call this
+// alongside every `unit.status = ...` assignment so the timestamp never goes stale.
+function touchUnitStatus(unit) {
+  if (unit) unit.lastStatusUpdate = Date.now();
 }
 
 function setUnitStatusFromTag(event, unitCallsign, newStatus, callId, shouldLog) {
@@ -1561,6 +1755,7 @@ function setUnitStatusFromTag(event, unitCallsign, newStatus, callId, shouldLog)
 
   var prevStatus = unit.status;
   unit.status = newStatus;
+  touchUnitStatus(unit);
 
   // If moving to an availability status, unassign from call
   var clearsCall = ['available','available in quarters','available on radio','administrative','unavailable','out of service'].includes(newStatus);
@@ -1584,7 +1779,7 @@ function setUnitStatusFromTag(event, unitCallsign, newStatus, callId, shouldLog)
     }
   }
 
-  expandedUnitTagId = null;
+  unitTagModal = null;
   expandedUnitStatusId = null;
   toast('🔄 ' + unitCallsign + ' → ' + newStatus.toUpperCase());
   renderCAD();
@@ -1603,7 +1798,8 @@ function removeUnitFromTag(event, unitCallsign, callId) {
   }
   unit.assignedCall = null;
   unit.status = clearStatus;
-  expandedUnitTagId = null;
+  touchUnitStatus(unit);
+  unitTagModal = null;
   expandedUnitStatusId = null;
   toast('📤 ' + unitCallsign + ' removed from call #' + callId);
   renderCAD();
@@ -1636,6 +1832,7 @@ function setUnitStatusFromOverview(event, unitId, newStatus, shouldLog) {
 
   targetUnits.forEach(function(unit) {
     unit.status = newStatus;
+    touchUnitStatus(unit);
 
     if (clearsCall && unit.assignedCall) {
       var call = state.calls.find(function(c){ return c.id === unit.assignedCall; });
@@ -1676,6 +1873,7 @@ function clearUnitFromOverview(event, unitId) {
       unit.assignedCall = null;
     }
     unit.status = clearStatus;
+    touchUnitStatus(unit);
   });
 
   expandedUnitStatusId = null;
@@ -1685,6 +1883,7 @@ function clearUnitFromOverview(event, unitId) {
 }
 
 function toggleVehSection() { vehSectionOpen = !vehSectionOpen; renderCAD(); }
+function toggleUnitsSection() { unitsSectionOpen = !unitsSectionOpen; renderCAD(); }
 function togglePerSection() { perSectionOpen = !perSectionOpen; renderCAD(); }
 function navVeh(callId, dir) {
   var call = state.calls.find(function(c){ return c.id === callId; });
@@ -1785,6 +1984,43 @@ let unitDeptFilter = 'ALL';
 let callAssignmentFilter = 'ALL';
 let boloTypeFilter = 'ALL';
 let deptSynced = true; // linked by default
+
+// Incidents table column sort — field is one of 'incno','code','pri','loc','units',
+// or null for the default (no sort applied, original stack order). dir is 1 (A-Z / ascending)
+// or -1 (Z-A / descending). Clicking the same header toggles dir; clicking a new header
+// resets to ascending.
+let callSortField = null;
+let callSortDir = 1;
+
+function setCallSort(field) {
+  if (callSortField === field) {
+    callSortDir = -callSortDir;
+  } else {
+    callSortField = field;
+    callSortDir = 1;
+  }
+  renderCAD();
+}
+
+// Active units mini-table "Unit" column sort — toggles between default
+// roster order and ordering by last status update from the dispatcher
+// (unit.lastStatusUpdate, stamped by touchUnitStatus on every status change).
+// dir 1 = most-recent-first, -1 = oldest-first.
+let activeUnitSortByUpdate = false;
+let activeUnitSortDir = 1;
+
+function setActiveUnitSort() {
+  if (!activeUnitSortByUpdate) {
+    activeUnitSortByUpdate = true;
+    activeUnitSortDir = 1;
+  } else if (activeUnitSortDir === 1) {
+    activeUnitSortDir = -1;
+  } else {
+    activeUnitSortByUpdate = false;
+    activeUnitSortDir = 1;
+  }
+  renderCAD();
+}
 
 function setDeptFilter(dept) {
   callDeptFilter = dept;
@@ -2742,7 +2978,7 @@ function executeSingleCommand(val, segIdx) {
       targetedCallsigns.forEach(cs => { assignUnitToCall(cs, newId, true); });
       targetedCallsigns.forEach(cs => {
         const u = state.units.find(unit => unit.callsign.toUpperCase() === cs);
-        if (u) u.status = 'on scene';
+        if (u) { u.status = 'on scene'; touchUnitStatus(u); }
       });
 
       state.selectedCallId = newId; state.activeProfileView = 'CALL';
@@ -2798,7 +3034,7 @@ function executeSingleCommand(val, segIdx) {
       targetedCallsigns.forEach(cs => { assignUnitToCall(cs, newId, true); });
       targetedCallsigns.forEach(cs => {
         const u = state.units.find(unit => unit.callsign.toUpperCase() === cs);
-        if (u) u.status = 'on scene';
+        if (u) { u.status = 'on scene'; touchUnitStatus(u); }
       });
 
       state.selectedCallId = newId; state.activeProfileView = 'CALL';
@@ -3238,6 +3474,7 @@ function executeDirectStatusMacro(unitCallsign, targetStatus, comment) {
 
   groupMembers.forEach(member => {
     member.status = targetStatus;
+    touchUnitStatus(member);
 
     if (['available', 'available in quarters', 'available on radio', 'administrative', 'unavailable', 'out of service'].includes(member.status)) {
       if (member.assignedCall) {
@@ -3290,6 +3527,7 @@ function assignUnitToCall(unitCallsign, callId, suppressLog) {
 
     member.assignedCall = call.id;
     member.status = 'en route';
+    touchUnitStatus(member);
     if (!call.assigned.includes(member.id)) call.assigned.push(member.id);
   });
 
@@ -3393,6 +3631,7 @@ function reopenCall(callId) {
         }
         unit.assignedCall = callId;
         unit.status = 'dispatched';
+        touchUnitStatus(unit);
         redispatchedCallsigns.push(unit.callsign);
       }
     });
@@ -3417,11 +3656,39 @@ function addVehicleToCall(callId) {
 }
 
 function executeTrainingSimulationLoad() {
+  // Stagger fake "last updated by dispatcher" timestamps across the demo
+  // roster (most-recent first) so the new Active-column "Last Update" sort
+  // has something meaningful to show immediately, instead of every demo
+  // unit reporting the exact same load-time stamp.
+  const __simBaseTime = Date.now();
+  const __simStamp = (minutesAgo) => __simBaseTime - minutesAgo * 60000;
+
   state.units = [
-    { id: 'u_demo1', callsign: '1A-12', name: 'Officer Miller', dept: 'Law', agency: 'LSPD', status: 'available', caps: ['Patrol', 'K9'], assignedCall: null },
-    { id: 'u_demo2', callsign: '1A-20', name: 'Officer Davis', dept: 'Law', agency: 'LSPD', status: 'en route', caps: ['Patrol', 'Speed Unit'], assignedCall: '1002' },
-    { id: 'u_demo3', callsign: 'E-4', name: 'Captain Harris', dept: 'Fire', agency: 'SAFD', status: 'on scene', caps: ['Engine'], assignedCall: '1001' },
-    { id: 'u_demo4', callsign: 'M-7', name: 'Medic Thompson', dept: 'Fire', agency: 'SAFD', status: 'staging', caps: ['ALS Ambulance'], assignedCall: '1001' }
+    { id: 'u_demo1',  callsign: '1A-12', name: 'Officer Miller',      dept: 'Law',  agency: 'LSPD', status: 'available',            caps: ['Patrol', 'K9'],             assignedCall: null, lastStatusUpdate: __simStamp(42) },
+    { id: 'u_demo2',  callsign: '1A-20', name: 'Officer Davis',       dept: 'Law',  agency: 'LSPD', status: 'en route',             caps: ['Patrol', 'Speed Unit'],     assignedCall: '1002', lastStatusUpdate: __simStamp(2) },
+    { id: 'u_demo3',  callsign: 'E-4',   name: 'Captain Harris',      dept: 'Fire', agency: 'SAFD', status: 'on scene',             caps: ['Engine'],                   assignedCall: '1001', lastStatusUpdate: __simStamp(6) },
+    { id: 'u_demo4',  callsign: 'M-7',   name: 'Medic Thompson',      dept: 'Fire', agency: 'SAFD', status: 'staging',              caps: ['ALS Ambulance'],            assignedCall: '1001', lastStatusUpdate: __simStamp(9) },
+    { id: 'u_demo5',  callsign: '2A-04', name: 'Officer Castillo',    dept: 'Law',  agency: 'LSPD', status: 'on scene',             caps: ['Patrol'],                   assignedCall: '1003', lastStatusUpdate: __simStamp(4) },
+    { id: 'u_demo6',  callsign: '2A-15', name: 'Officer Nguyen',      dept: 'Law',  agency: 'LSPD', status: 'on scene',             caps: ['Patrol'],                   assignedCall: '1003', lastStatusUpdate: __simStamp(4) },
+    { id: 'u_demo7',  callsign: '3L-02', name: 'Sergeant Okafor',     dept: 'Law',  agency: 'LSPD', status: 'available',            caps: ['Patrol', 'Supervisor'],     assignedCall: null, lastStatusUpdate: __simStamp(55) },
+    { id: 'u_demo8',  callsign: 'K9-7',  name: 'Officer Brandt',      dept: 'Law',  agency: 'LSPD', status: 'available on radio',   caps: ['K9'],                       assignedCall: null, lastStatusUpdate: __simStamp(31) },
+    { id: 'u_demo9',  callsign: '5M-11', name: 'Deputy Wallace',      dept: 'Law',  agency: 'BCSO', status: 'en route',             caps: ['Patrol'],                   assignedCall: '1006', lastStatusUpdate: __simStamp(1) },
+    { id: 'u_demo10', callsign: '5M-18', name: 'Deputy Park',         dept: 'Law',  agency: 'BCSO', status: 'in the area',          caps: ['Patrol', 'Wildlife'],       assignedCall: null, lastStatusUpdate: __simStamp(17) },
+    { id: 'u_demo11', callsign: 'AIR-1', name: 'Officer Reyes',       dept: 'Law',  agency: 'LSPD', status: 'dispatched',           caps: ['Air'],                      assignedCall: '1008', lastStatusUpdate: __simStamp(3) },
+    { id: 'u_demo12', callsign: 'SWAT-3',name: 'Cpl. Donnelly',       dept: 'Law',  agency: 'LSPD', status: 'staging',              caps: ['SWAT'],                     assignedCall: '1009', lastStatusUpdate: __simStamp(8) },
+    { id: 'u_demo13', callsign: '4M-09', name: 'Officer Vasquez',     dept: 'Law',  agency: 'LSPD', status: 'transporting',         caps: ['Patrol', 'Motor'],          assignedCall: '1011', lastStatusUpdate: __simStamp(5) },
+    { id: 'u_demo14', callsign: '1A-31', name: 'Officer Pham',        dept: 'Law',  agency: 'LSPD', status: 'available in quarters', caps: ['Patrol'],                  assignedCall: null, lastStatusUpdate: __simStamp(63) },
+    { id: 'u_demo15', callsign: 'CID-2', name: 'Detective Stroud',    dept: 'Law',  agency: 'LSPD', status: 'dispatched',           caps: ['CID'],                      assignedCall: '1014', lastStatusUpdate: __simStamp(7) },
+    { id: 'u_demo16', callsign: 'E-9',   name: 'Lt. Abernathy',       dept: 'Fire', agency: 'SAFD', status: 'on scene',             caps: ['Engine', 'Command'],        assignedCall: '1004', lastStatusUpdate: __simStamp(11) },
+    { id: 'u_demo17', callsign: 'L-3',   name: 'Firefighter Cho',     dept: 'Fire', agency: 'SAFD', status: 'on scene',             caps: ['Ladder Truck'],             assignedCall: '1004', lastStatusUpdate: __simStamp(11) },
+    { id: 'u_demo18', callsign: 'M-12',  name: 'Medic Alvarado',      dept: 'Fire', agency: 'SAFD', status: 'transport complete',   caps: ['BLS Ambulance'],            assignedCall: null, lastStatusUpdate: __simStamp(14) },
+    { id: 'u_demo19', callsign: 'M-15',  name: 'Medic Greenfield',    dept: 'Fire', agency: 'SAFD', status: 'en route',             caps: ['ALS Ambulance'],            assignedCall: '1010', lastStatusUpdate: __simStamp(3) },
+    { id: 'u_demo20', callsign: 'BR-2',  name: 'Firefighter Daniels', dept: 'Fire', agency: 'SAFD', status: 'staging',              caps: ['Brush', 'Tanker'],          assignedCall: '1012', lastStatusUpdate: __simStamp(10) },
+    { id: 'u_demo21', callsign: 'HZ-1',  name: 'Firefighter Okoye',   dept: 'Fire', agency: 'SAFD', status: 'on scene',             caps: ['Hazmat'],                   assignedCall: '1013', lastStatusUpdate: __simStamp(13) },
+    { id: 'u_demo22', callsign: 'R-5',   name: 'Firefighter Tully',   dept: 'Fire', agency: 'SAFD', status: 'available in quarters',caps: ['Rescue Squad'],             assignedCall: null, lastStatusUpdate: __simStamp(70) },
+    { id: 'u_demo23', callsign: 'LF-1',  name: 'Flight Medic Ibarra', dept: 'Fire', agency: 'SAFD', status: 'on scene ok',          caps: ['Life Flight'],              assignedCall: '1016', lastStatusUpdate: __simStamp(16) },
+    { id: 'u_demo24', callsign: 'WL-4',  name: 'Firefighter Santos',  dept: 'Fire', agency: 'SAFD', status: 'unavailable',          caps: ['Wildland'],                 assignedCall: null, lastStatusUpdate: __simStamp(90) },
+    { id: 'u_demo25', callsign: '2A-22', name: 'Officer Whitfield',   dept: 'Law',  agency: 'LSPD', status: 'out of service',       caps: ['Patrol'],                   assignedCall: null, lastStatusUpdate: __simStamp(120) }
   ];
 
   const curTime = new Date().toLocaleTimeString('en-US', {hour12:false});
@@ -3429,7 +3696,7 @@ function executeTrainingSimulationLoad() {
     {
       id: '1001',
       type: 'Structure Fire (SF)',
-      location: '404 Alta Street',
+      location: '404 U.S. Route 68 / Fort Zancudo Approach Road • Great Chaparral',
       priority: '1',
       source: '911',
       dept: 'Fire',
@@ -3441,13 +3708,208 @@ function executeTrainingSimulationLoad() {
     {
       id: '1002',
       type: 'Traffic Stop (TS)',
-      location: 'Great Ocean Highway / Route 68',
+      location: '419 U.S. Route 1 / U.S. Route 68 • Tongva Hills',
       priority: '3',
       source: 'Field',
       dept: 'Law',
       comments: `[${curTime}][FIELD]: 1A-20 out with a black sports vehicle speeding across grid limits.`,
       assigned: ['u_demo2'],
       vehicles: [{ plate: '24BOS88', make: 'Bravado', model: 'Buffalo', color: 'Black', involvement: 'Suspect', info: 'Driver speeding over 95MPH' }],
+      suspects: []
+    },
+    {
+      id: '1003',
+      type: 'Domestic (DOM)',
+      location: '022 Procopio Drive / Cascabel Avenue • Paleto Bay',
+      priority: '1',
+      source: '911',
+      dept: 'Law',
+      comments: `[${curTime}][911]: Neighbor reports loud yelling and a possible physical altercation next door.\n[${curTime}][DISP]: 2A-04 and 2A-15 dispatched, two units requested per protocol.`,
+      assigned: ['u_demo5', 'u_demo6'],
+      vehicles: [],
+      suspects: [{ name: 'Unknown Male', dob: '', race: '', gender: 'Male', involvement: 'Suspect', info: 'Heard yelling inside residence, identity unconfirmed, detained for questioning' }]
+    },
+    {
+      id: '1004',
+      type: 'Vehicle Fire (VFIRE)',
+      location: '039 U.S. Route 1 (Ron Gas Station Paleto Bay Rest Stop) • Paleto Bay',
+      priority: '1',
+      source: '911',
+      dept: 'Fire',
+      comments: `[${curTime}][911]: Caller reports a sedan fully engulfed near the gas station rest stop.\n[${curTime}][DISP]: E-9 and L-3 responding, fuel hazard noted.`,
+      assigned: ['u_demo16', 'u_demo17'],
+      vehicles: [{ plate: '11KLT04', make: 'Vapid', model: 'Stanier', color: 'Silver', involvement: 'Involved', info: 'Vehicle fully engulfed, occupants self-evacuated prior to arrival' }],
+      suspects: []
+    },
+    {
+      id: '1005',
+      type: 'Shoplifting (SHOP)',
+      location: "026 Paleto Boulevard (Willie's Supermarket) • Paleto Bay",
+      priority: '2',
+      source: 'Field',
+      dept: 'Law',
+      comments: `[${curTime}][FIELD]: Store security flagged a subject concealing merchandise near the entrance.`,
+      assigned: [],
+      vehicles: [],
+      suspects: [{ name: 'Unidentified Subject', dob: '', race: '', gender: 'Male', involvement: 'Wanted Person', info: 'Gray hoodie, fled on foot southbound, at large' }]
+    },
+    {
+      id: '1006',
+      type: 'Suspicious Vehicle (SUSV)',
+      location: '502 Whispymound Drive / Wild Oats Drive • Vinewood Hills',
+      priority: '3',
+      source: 'Field',
+      dept: 'Law',
+      comments: `[${curTime}][FIELD]: Vehicle parked for over an hour with engine running, no occupant visible movement.\n[${curTime}][DISP]: 5M-11 en route to check welfare/registration.`,
+      assigned: ['u_demo9'],
+      vehicles: [{ plate: '77PRC19', make: 'Declasse', model: 'Tornado', color: 'Maroon', involvement: 'Involved', info: 'Parked, engine idling, no movement observed' }],
+      suspects: []
+    },
+    {
+      id: '1007',
+      type: 'Welfare Check (CKWEL)',
+      location: '273 Algonquin Boulevard (Derelict Motel) • Sandy Shores',
+      priority: '2',
+      source: 'Phone',
+      dept: 'Law',
+      comments: `[${curTime}][PHONE]: Family member requests a welfare check on an elderly resident who has not answered calls in two days.`,
+      assigned: [],
+      vehicles: [],
+      suspects: []
+    },
+    {
+      id: '1008',
+      type: 'Traffic Pursuit (TP)',
+      location: '914 Interstate 5 (Milepost 3) • Elysian Island',
+      priority: '1',
+      source: 'Field',
+      dept: 'Law',
+      comments: `[${curTime}][FIELD]: Vehicle failed to yield during attempted stop, pursuit initiated northbound on I-5.\n[${curTime}][DISP]: AIR-1 launched to assist ground units.`,
+      assigned: ['u_demo11'],
+      vehicles: [{ plate: '09VLC2X', make: 'Pegassi', model: 'Vacca', color: 'Yellow', involvement: 'Suspect', info: 'Failed to yield, speeds exceeding 110MPH' }],
+      suspects: [{ name: 'Unknown Driver', dob: '', race: '', gender: '', involvement: 'Wanted Person', info: 'Sole occupant, refusing to stop, active pursuit in progress' }]
+    },
+    {
+      id: '1009',
+      type: 'Barricaded Subject (BARRI)',
+      location: '571 Nikola Place / East Mirror Drive • Mirror Park',
+      priority: '2',
+      source: '911',
+      dept: 'Law',
+      comments: `[${curTime}][911]: Caller reports a subject barricaded inside a residence, possibly armed.\n[${curTime}][DISP]: SWAT-3 staging two blocks out, perimeter being established.`,
+      assigned: ['u_demo12'],
+      vehicles: [],
+      suspects: [{ name: 'Unidentified Subject', dob: '', race: '', gender: '', involvement: 'Wanted Person', info: 'Barricaded inside residence, contact not yet established, scene contained' }]
+    },
+    {
+      id: '1010',
+      type: 'Personal Injury Accident (PIA)',
+      location: '089 U.S. Route 1 / East Joshua Road • Grapeseed',
+      priority: '1',
+      source: '911',
+      dept: 'Fire',
+      comments: `[${curTime}][911]: Two-vehicle collision reported with at least one occupant trapped.\n[${curTime}][DISP]: M-15 dispatched, extrication may be required.`,
+      assigned: ['u_demo19'],
+      vehicles: [
+        { plate: '44GHT83', make: 'Karin', model: 'Kuruma', color: 'Blue', involvement: 'Involved', info: 'Front-end collision, driver pinned' },
+        { plate: '02WQX55', make: 'Bravado', model: 'Bison', color: 'White', involvement: 'Involved', info: 'Rear-ended lead vehicle, minor damage' }
+      ],
+      suspects: []
+    },
+    {
+      id: '1011',
+      type: 'Stolen Vehicle (STLVEH)',
+      location: '114 Grapeseed Main Street / Seaview Road • Grapeseed',
+      priority: '3',
+      source: 'Field',
+      dept: 'Law',
+      comments: `[${curTime}][FIELD]: 4M-09 located a vehicle matching a stolen vehicle report, occupant detained without incident.\n[${curTime}][FIELD]: Subject transported for processing.`,
+      assigned: ['u_demo13'],
+      vehicles: [{ plate: '18BCS44', make: 'Annis', model: 'Elegy', color: 'Black', involvement: 'Wanted Person', info: 'Reported stolen earlier this shift, recovered undamaged' }],
+      suspects: [{ name: 'Marcus Webb', dob: '', race: '', gender: 'Male', involvement: 'Suspect', info: 'Found in possession of the stolen vehicle, in custody' }]
+    },
+    {
+      id: '1012',
+      type: 'Brush Fire (BRUSH)',
+      location: '057 U.S. Route 1 (Go Loco Railroad line) • Paleto Forest',
+      priority: '2',
+      source: '911',
+      dept: 'Fire',
+      comments: `[${curTime}][911]: Hikers report a small brush fire spreading near the trailhead.\n[${curTime}][DISP]: BR-2 staging at access road, awaiting wind assessment.`,
+      assigned: ['u_demo20'],
+      vehicles: [],
+      suspects: []
+    },
+    {
+      id: '1013',
+      type: 'Hazmat (HAZ)',
+      location: '915 Chupacabra Street (Port of South Los Santos) • Elysian Island',
+      priority: '1',
+      source: 'Field',
+      dept: 'Fire',
+      comments: `[${curTime}][FIELD]: Dockworker reports a leaking container with an unknown chemical odor.\n[${curTime}][DISP]: HZ-1 on scene, area being cordoned off pending identification.`,
+      assigned: ['u_demo21'],
+      vehicles: [],
+      suspects: []
+    },
+    {
+      id: '1014',
+      type: 'Fraud (FRAUD)',
+      location: '024 Paleto Boulevard (Blaine County Savings Bank) • Paleto Bay',
+      priority: '3',
+      source: 'Phone',
+      dept: 'Law',
+      comments: `[${curTime}][PHONE]: Bank manager reports a series of suspicious withdrawals on a customer account flagged for review.\n[${curTime}][DISP]: CID-2 assigned to investigate.`,
+      assigned: ['u_demo15'],
+      vehicles: [],
+      suspects: []
+    },
+    {
+      id: '1015',
+      type: 'Animal Complaint (ANML)',
+      location: '019 Paleto Boulevard / Duluoz Avenue • Paleto Bay',
+      priority: '3',
+      source: 'Phone',
+      dept: 'Law',
+      comments: `[${curTime}][PHONE]: Resident reports a coyote acting aggressively near a residential property line.`,
+      assigned: [],
+      vehicles: [],
+      suspects: []
+    },
+    {
+      id: '1016',
+      type: 'Life Flight (LIFE)',
+      location: '890 New Empire Way (LSIA) • LSIA',
+      priority: '1',
+      source: '911',
+      dept: 'Fire',
+      comments: `[${curTime}][911]: Critical trauma patient requires immediate air transport to a trauma center.\n[${curTime}][DISP]: LF-1 on scene, patient being prepped for transport.`,
+      assigned: ['u_demo23'],
+      vehicles: [],
+      suspects: []
+    },
+    {
+      id: '1017',
+      type: 'Noise Complaint (NOISE)',
+      location: '285 Algonquin Boulevard / Lolita Avenue • Sandy Shores',
+      priority: '3',
+      source: 'Phone',
+      dept: 'Law',
+      comments: `[${curTime}][PHONE]: Repeated complaints of loud music from a residence after quiet hours.`,
+      assigned: [],
+      vehicles: [],
+      suspects: []
+    },
+    {
+      id: '1018',
+      type: 'Property Alarm Commercial (CALRM)',
+      location: '244 U.S. Route 68 (Harmony Plaza) • Harmony',
+      priority: '3',
+      source: 'Alarm',
+      dept: 'Law',
+      comments: `[${curTime}][ALARM]: Automated alarm triggered at the back door, no keyholder response yet.`,
+      assigned: [],
+      vehicles: [],
       suspects: []
     }
   ];
@@ -3652,7 +4114,7 @@ function renderCAD() {
     const emptyMsg = 'No ' + (unitDeptFilter !== 'ALL' ? unitDeptFilter + ' ' : '') + 'units';
     UNIT_GROUP_ORDER.forEach(groupName => {
       unitsColCountEls[groupName].textContent = '(0)';
-      const colspan = groupName === 'Active' ? 3 : 2;
+      const colspan = 3;
       unitsColEls[groupName].innerHTML = `<tr class="units-empty-row"><td colspan="${colspan}">${emptyMsg}</td></tr>`;
     });
   } else {
@@ -3689,9 +4151,18 @@ function renderCAD() {
       unitsColCountEls[groupName].textContent = '(' + groupUnits.length + ')';
 
       if (groupUnits.length === 0) {
-        const colspan = groupName === 'Active' ? 3 : 2;
+        const colspan = 3;
         unitsColEls[groupName].innerHTML = `<tr class="units-empty-row"><td colspan="${colspan}">No units</td></tr>`;
         return;
+      }
+
+      // "Unit" header sort (Active table only): order by last status update
+      // from the dispatcher instead of the default roster/stack order.
+      // activeUnitSortDir 1 = most-recent-first (b - a), -1 = oldest-first (a - b).
+      if (groupName === 'Active' && activeUnitSortByUpdate) {
+        groupUnits.sort(function(a, b) {
+          return ((b.lastStatusUpdate || 0) - (a.lastStatusUpdate || 0)) * activeUnitSortDir;
+        });
       }
 
       unitsColEls[groupName].innerHTML = groupUnits.map(u => {
@@ -3702,19 +4173,9 @@ function renderCAD() {
         const clickFn = u.isComposite ? `openUnitProfile('${u.memberIds[0]}')` : `openUnitProfile('${u.id}')`;
         const dragAttrs = u.isComposite ? '' : `draggable="true" ondragstart="handleDragStart(event, '${u.id}')"`;
 
-        const isStatusExpanded = expandedUnitStatusId === u.id;
-        const pickerColspan = groupName === 'Active' ? 3 : 2;
-        const statusPickerRow = isStatusExpanded
-          ? `<tr class="unit-status-picker-row"><td colspan="${pickerColspan}" onclick="event.stopPropagation()">${renderUnitStatusPicker(
-              u.status,
-              (s) => `setUnitStatusFromOverview(event,'${u.id}','${s.value}',${s.log})`,
-              `clearUnitFromOverview(event,'${u.id}')`,
-              u.assignedCall ? 'CLEAR UNIT' : 'SET AVAILABLE',
-              u.assignedCall ? 'Clear unit from this incident' : 'Set unit to available',
-              OVERVIEW_PICKER_STATUSES,
-              true
-            )}</td></tr>`
-          : '';
+        const isStatusExpanded = false; // picker now opens as a modal
+        const pickerColspan = 3;
+        const statusPickerRow = ''; // no longer used — modal replaces inline expansion
 
         if (groupName === 'Active') {
           // Unit | Status | Incident # + Event Code
@@ -3733,13 +4194,12 @@ function renderCAD() {
           return `
   <tr class="unit-row ${deptRail} ${isSelected}" ${dragAttrs} onclick="${clickFn}">
     <td class="ucol-td-unit">${displayName}</td>
-    <td class="ucol-td-status"><span class="unit-status ${cls} status-clickable" onclick="event.stopPropagation(); toggleUnitCardStatusPicker(event,'${u.id}')" title="Click to change status">${u.status.toUpperCase()}</span></td>
+    <td class="ucol-td-status"><span class="unit-status ${cls} status-clickable" onclick="event.stopPropagation(); openUnitTagModal(event,'${u.id}',null)" title="${u.status.toUpperCase()} — click to change status">${STATUS_SHORTHAND[u.status] || u.status.toUpperCase()}</span></td>
     <td class="ucol-td-incident" onclick="event.stopPropagation(); ${u.assignedCall ? `openCallProfile('${u.assignedCall}')` : ''}">${incidentCell}${compositeNote}</td>
-  </tr>
-  ${statusPickerRow}`;
+  </tr>`;
         }
 
-        // Avail / Unavail: Unit | Capabilities/Dept
+        // Avail / Unavail: Dept | Unit | Capabilities/Dept
         const deptBadge = u.dept ? `<span class="dept-${u.dept.toLowerCase()}">${u.dept.toUpperCase()}</span>` : '';
         const metaParts = [];
         if (u.agency) metaParts.push(u.agency);
@@ -3748,12 +4208,22 @@ function renderCAD() {
 
         return `
   <tr class="unit-row ${deptRail} ${isSelected}" ${dragAttrs} onclick="${clickFn}">
-    <td class="ucol-td-unit">${displayName}</td>
-    <td class="ucol-td-meta">${deptBadge}${compositeMeta}</td>
-  </tr>
-  ${statusPickerRow}`;
+    <td class="ucol-td-dept">${deptBadge}</td>
+    <td class="ucol-td-unit" onclick="event.stopPropagation(); openUnitTagModal(event,'${u.id}',null)" style="cursor:pointer;" title="Click to change status">${displayName}</td>
+    <td class="ucol-td-meta">${compositeMeta}</td>
+  </tr>`;
       }).join('');
     });
+
+    // Reflect current "Unit" column sort state on the Active table header.
+    const activeUnitTh = document.getElementById('th-active-unit-sort');
+    const activeUnitArrow = document.getElementById('active-unit-sort-arrow');
+    if (activeUnitTh && activeUnitArrow) {
+      activeUnitTh.classList.toggle('sort-active', activeUnitSortByUpdate);
+      activeUnitArrow.textContent = !activeUnitSortByUpdate
+        ? '⇕'
+        : (activeUnitSortDir === 1 ? '▼ Newest' : '▲ Oldest');
+    }
   }
 
 
@@ -3811,6 +4281,58 @@ function renderCAD() {
 
   document.getElementById('call-count').textContent = '(' + filteredCalls.length + (callDeptFilter !== 'ALL' || callAssignmentFilter !== 'ALL' ? '/' + openCalls.length : '') + ')';
 
+  // Apply column sort (if any) on top of the dept/assignment filtering above.
+  // Each field gets its own comparable key so sorting feels natural for that
+  // column's actual displayed content rather than raw object insertion order.
+  if (callSortField) {
+    const sortKeyFor = function(c) {
+      switch (callSortField) {
+        case 'incno': {
+          const n = parseInt(c.id, 10);
+          return isNaN(n) ? String(c.id || '') : n;
+        }
+        case 'code': {
+          const typeStr = c.type || '';
+          const m = typeStr.match(/\(([^)]+)\)\s*$/);
+          return (m ? m[1] : typeStr || '').toUpperCase();
+        }
+        case 'pri':
+          return parseInt(c.priority, 10) || 3;
+        case 'loc':
+          return (c.location || '').toUpperCase();
+        case 'units': {
+          const callsigns = (c.assigned || []).map(uid => {
+            const u = state.units.find(x => x.id === uid);
+            return u ? u.callsign : '';
+          }).filter(Boolean).sort();
+          return callsigns.join(',').toUpperCase();
+        }
+        default:
+          return '';
+      }
+    };
+    filteredCalls.sort(function(a, b) {
+      const ka = sortKeyFor(a), kb = sortKeyFor(b);
+      let cmp;
+      if (typeof ka === 'number' && typeof kb === 'number') {
+        cmp = ka - kb;
+      } else {
+        cmp = String(ka).localeCompare(String(kb), undefined, { numeric: true, sensitivity: 'base' });
+      }
+      return cmp * callSortDir;
+    });
+  }
+
+  // Sync header active/arrow state to reflect the current sort column + direction.
+  ['incno', 'code', 'pri', 'loc', 'units'].forEach(function(f) {
+    const th = document.getElementById('th-sort-' + f);
+    const arrow = document.getElementById('sort-arrow-' + f);
+    if (!th || !arrow) return;
+    const isActive = callSortField === f;
+    th.classList.toggle('sort-active', isActive);
+    arrow.textContent = isActive ? (callSortDir === 1 ? '▲ A–Z' : '▼ Z–A') : '⇕';
+  });
+
   if (filteredCalls.length === 0) {
     callsContainer.innerHTML = '<tr class="incidents-empty-row"><td colspan="5">No matching incidents in stack</td></tr>';
   } else {
@@ -3825,39 +4347,7 @@ function renderCAD() {
       const codeDisplay = codeMatch ? codeMatch[1] : (typeStr || '—');
       const codeTitle = typeStr || 'Unassigned Call Type';
 
-      const assignedTags = c.assigned.map(uid => {
-        const u = state.units.find(x => x.id === uid);
-        if (!u) return '';
-        const statusClass = STATUS_STYLES[u.status] || 's-unavailable';
-        const tagKey = c.id + '__' + u.id;
-        const isExpanded = expandedUnitTagId === tagKey;
-
-        if (isExpanded) {
-          const pickerHtml = renderUnitStatusPicker(
-            u.status,
-            (s) => `setUnitStatusFromTag(event,'${u.callsign}','${s.value}','${c.id}',${s.log})`,
-            `removeUnitFromTag(event,'${u.callsign}','${c.id}')`,
-            'CLEAR UNIT',
-            'Clear unit from this incident'
-          );
-
-          return `
-            <span class="call-unit-tag ${statusClass} tag-expanded" onclick="event.stopPropagation()">
-              <div class="tag-top-row">
-                <strong style="font-size:11px;">${u.callsign}</strong>
-                <span style="font-size:9px;opacity:0.55;font-family:'Consolas',monospace;">${u.status.toUpperCase()}</span>
-                <span class="tag-remove-btn" onclick="toggleUnitTagExpand(event,'${u.id}','${c.id}')" title="Collapse">✕</span>
-              </div>
-              ${pickerHtml}
-            </span>`;
-        }
-
-        // Collapsed — just the callsign chip, click to expand (no chevron)
-        return `
-          <span class="call-unit-tag ${statusClass}" onclick="toggleUnitTagExpand(event,'${u.id}','${c.id}')" title="Click to change status">
-            ${u.callsign}
-          </span>`;
-      }).join('');
+      const assignedTags = renderCallUnitTags(c);
 
       return `
   <tr class="incident-row row-${pClass} ${isSelected}"
@@ -3894,6 +4384,7 @@ function renderCAD() {
 
   dispatchProfileSplitViewRenderer();
   document.getElementById('btn-quick-scene').disabled = !state.selectedCallId;
+  renderUnitTagModal();
 }
 
 function updateVehicleField(callId, index, field, value) {
@@ -4186,7 +4677,7 @@ function dispatchProfileSplitViewRenderer() {
   }
 
   if (state.activeProfileView === 'HELP') {
-    panelTitle.textContent = "CAD System Documentation Help Desk";
+    panelTitle.innerHTML = `CAD System Documentation Help Desk <button onclick="closeProfileViewer()" title="Close" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1;margin-left:auto;">✕</button>`;
     container.innerHTML = `
       <div style="font-size:16px; font-weight:bold; color:var(--accent); margin-bottom:6px;">Tactical Command Cheat-Sheet</div>
       <p style="color:var(--muted); line-height:1.4; margin-bottom:12px;">Type these macros into the <span style="font-family:monospace; color:#fff">CAD_CMD\\></span> bar at the top of the interface followed by <kbd style="background:var(--bg4); padding:1px 4px; border-radius:3px;">Enter</kbd>.</p>
@@ -4233,7 +4724,7 @@ function dispatchProfileSplitViewRenderer() {
         </tbody>
       </table>
 
-      <div style="margin-top:16px;"><button class="btn btn-sm btn-primary" style="width:100%;" onclick="closeProfileViewer()">Close Documentation Monitor</button></div>
+      <div style="height:16px;"></div>
     `;
     return;
   }
@@ -4241,7 +4732,7 @@ function dispatchProfileSplitViewRenderer() {
   if (state.activeProfileView === 'UNIT') {
     const unit = state.units.find(u => u.id === state.selectedUnitId);
     if (!unit) return;
-    panelTitle.textContent = `Unit Viewer — ${unit.callsign || 'New Unit'}`;
+    panelTitle.innerHTML = `Unit Viewer — ${unit.callsign || 'New Unit'} <button onclick="closeProfileViewer()" title="Minimize" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1;margin-left:auto;">✕</button>`;
     const availableCaps = DEPT_CAPS[unit.dept] || [];
     const capsCheckboxHtml = availableCaps.map(cap => {
       return `
@@ -4265,7 +4756,7 @@ function dispatchProfileSplitViewRenderer() {
       <div class="section-title">Unit Capabilities</div>
       <div class="caps-grid">${capsCheckboxHtml}</div>
       <div class="section-title">Administrative Operations</div>
-      <div style="display:flex; gap:8px; margin-top:10px;"><button class="btn btn-danger" style="flex:1;" onclick="state.units = state.units.filter(u=>u.id!=='${unit.id}'); state.activeProfileView=null; renderCAD();">Log Off</button><button class="btn" style="flex:1;" onclick="closeProfileViewer()">Minimize Panel</button></div>
+      <div style="display:flex; gap:8px; margin-top:10px;"><button class="btn btn-danger" style="flex:1;" onclick="state.units = state.units.filter(u=>u.id!=='${unit.id}'); state.activeProfileView=null; renderCAD();">Log Off Unit</button></div>
     `;
   } 
   if (state.activeProfileView === 'CALL') {
@@ -4279,10 +4770,16 @@ function dispatchProfileSplitViewRenderer() {
     const priNum = call.priority || '3';
     const priColor = priColors[priNum] || '#50fa7b';
     const priBg = priBgs[priNum] || 'rgba(80,250,123,0.2)';
+    const isActiveAssignment = call.assigned && call.assigned.length > 0;
+    const assignBadge = isActiveAssignment
+      ? `<span style="font-size:9px;font-weight:800;letter-spacing:0.4px;padding:2px 7px;border-radius:4px;background:rgba(189,147,249,0.18);color:var(--purple);border:1px solid var(--purple);opacity:0.9;margin-left:8px;flex-shrink:0;">ACTIVE</span>`
+      : `<span style="font-size:9px;font-weight:800;letter-spacing:0.4px;padding:2px 7px;border-radius:4px;background:rgba(255,184,108,0.15);color:var(--amber);border:1px solid var(--amber);opacity:0.9;margin-left:8px;flex-shrink:0;">PENDING</span>`;
     panelTitle.innerHTML = `<span style="display:flex;align-items:center;width:100%;">` +
       `<span style="color:var(--muted);font-weight:600;font-size:11px;margin-right:8px;">#${call.id}</span>` +
       `<span style="color:var(--text);font-weight:700;font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${eventName}</span>` +
-      `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;background:${priBg};color:${priColor};border:1px solid ${priColor};opacity:0.9;margin-left:10px;flex-shrink:0;">PRI-${priNum}</span>` +
+      assignBadge +
+      `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;background:${priBg};color:${priColor};border:1px solid ${priColor};opacity:0.9;margin-left:8px;flex-shrink:0;">PRI-${priNum}</span>` +
+      `<button onclick="closeProfileViewer()" title="Minimize" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1;margin-left:10px;flex-shrink:0;">✕</button>` +
       `</span>`;
 
 
@@ -4404,6 +4901,17 @@ function dispatchProfileSplitViewRenderer() {
         <input type="text" id="narrative-append-input-${call.id}" tabindex="3" placeholder="Append note to log... (Enter to save)" style="margin-bottom:0;flex:1;" onkeydown="if(event.key==='Enter'){appendNarrativeEntry('${call.id}',this.value);this.value='';}">
       </div>
 
+      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleUnitsSection()">
+        <span>Units ${call.assigned.length ? '<span style="color:var(--accent);font-size:10px;font-weight:600;">('+call.assigned.length+')</span>' : ''} <span style="color:var(--muted);font-size:11px;">${unitsSectionOpen ? '▲' : '▼'}</span></span>
+      </div>
+      <div id="call-units-container"
+        style="display:${unitsSectionOpen?'block':'none'};min-height:44px;border-radius:8px;padding:4px;margin-bottom:16px;transition:background-color 0.15s;"
+        ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move'; this.classList.add('drag-over');"
+        ondragleave="this.classList.remove('drag-over');"
+        ondrop="this.classList.remove('drag-over'); handleDrop(event, '${call.id}');">
+        <div class="call-units" style="margin-top:0;">${renderCallUnitTags(call) || '<span style="color:var(--muted);font-size:11px;">No units routed — drag a unit here from Unit Overview, or dispatch with DE [Unit] '+call.id+'</span>'}</div>
+      </div>
+
       <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleVehSection()">
         <span>Vehicles ${call.vehicles.length ? '<span style="color:var(--accent);font-size:10px;font-weight:600;">('+call.vehicles.length+')</span>' : ''} <span style="color:var(--muted);font-size:11px;">${vehSectionOpen ? '▲' : '▼'}</span></span>
         <button class="btn btn-sm btn-primary" style="font-size:10px;padding:2px 10px;" onclick="event.stopPropagation();addVehicleToCall('${call.id}')">Add</button>
@@ -4424,7 +4932,6 @@ function dispatchProfileSplitViewRenderer() {
         </select>
         <input type="text" id="close-unit-${call.id}" placeholder="Unit #" style="flex:1; min-width:90px; margin-bottom:0;">
         <button class="btn btn-danger" onclick="promptCloseCall('${call.id}')">Close Call</button>
-        <button class="btn" onclick="closeProfileViewer()">Minimize</button>
       </div>
     `;
     // Scroll narrative feed to bottom, then focus the narrative input
@@ -4580,7 +5087,8 @@ function handleQuickRouteScene() {
     const call = state.calls.find(c => c.id === state.selectedCallId);
     if (call) {
       call.assigned.forEach(uid => {
-        const u = state.units.find(unit => unit.id === uid); if (u) u.status = 'on scene';
+        const u = state.units.find(unit => unit.id === uid);
+        if (u) { u.status = 'on scene'; touchUnitStatus(u); }
       });
       toast("Stacked units pushed ON SCENE");
     }
@@ -5159,6 +5667,7 @@ var FIRE_DISPATCH_LIST = [
   {dept:'Fire', name:'Departmental',              code:'DEPT',     priority:'2'},
   {dept:'Fire', name:'Dumpster Fire',             code:'DUMP',     priority:'2'},
   {dept:'Fire', name:'Fire Alarm',                code:'FALRM',    priority:'3'},
+  {dept:'Fire', name:'Explosion',                 code:'EXPLODE',  priority:'1'},
   {dept:'Fire', name:'Gas Leak',                  code:'LEAK',     priority:'1'},
   {dept:'Fire', name:'Gas Station Fire',          code:'FUEL',     priority:'1'},
   {dept:'Fire', name:'Hazmat',                    code:'HAZ',      priority:'1'},
@@ -5195,7 +5704,7 @@ var FIRE_DISPATCH_LIST = [
   {dept:'Law',  name:'Animal Complaint',          code:'ANML',     priority:'3'},
   {dept:'Law',  name:'Armed Subject',             code:'ARMED',    priority:'1'},
   {dept:'Law',  name:'Assault',                   code:'ASSLT',    priority:'1'},
-  {dept:'Law',  name:'Assist',         code:'ASSIST',   priority:'3'},
+  {dept:'Law',  name:'Assist',                    code:'ASSIST',   priority:'3'},
   {dept:'Law',  name:'ATM Robbery',               code:'ATMROB',   priority:'1'},
   {dept:'Law',  name:'Bank Truck Robbery',        code:'BTKROB',   priority:'1'},
   {dept:'Law',  name:'Barricaded Subject',        code:'BARRI',    priority:'2'},
@@ -5208,7 +5717,7 @@ var FIRE_DISPATCH_LIST = [
   {dept:'Law',  name:'Dispute',                   code:'DISPUT',   priority:'2'},
   {dept:'Law',  name:'Domestic',                  code:'DOM',      priority:'1'},
   {dept:'Law',  name:'Emergency Petition',        code:'EP',       priority:'3'},
-  {dept:'Law',  name:'Public Event',              code:'PEVT',     priority:'3'},
+  {dept:'Law',  name:'Special Event',              code:'SPEC',     priority:'3'},
   {dept:'Law',  name:'Fight',                     code:'FIGHT',    priority:'2'},
   {dept:'Law',  name:'Fleeca Bank Robbery',       code:'FLEECA',   priority:'1'},
   {dept:'Law',  name:'Fraud',                     code:'FRAUD',    priority:'3'},
@@ -5225,6 +5734,7 @@ var FIRE_DISPATCH_LIST = [
   {dept:'Law',  name:'Noise Complaint',           code:'NOISE',    priority:'3'},
   {dept:'Law',  name:'Pacific Standard Bank Robbery', code:'PAC',  priority:'1'},
   {dept:'Law',  name:'Paleto Bay Bank Robbery',   code:'PALETO',   priority:'1'},
+  {dept:'Law',  name:'Premise Check',             code:'CKPREM',     priority:'3'},
   {dept:'Law',  name:'Parking Complaint',         code:'PARK',     priority:'3'},
   {dept:'Law',  name:'Prison Transport',          code:'PXFR',     priority:'3'},
   {dept:'Law',  name:'Prisoner Escape',           code:'ESCAPE',   priority:'1'},
