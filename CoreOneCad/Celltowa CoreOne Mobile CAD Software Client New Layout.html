@@ -1556,14 +1556,14 @@ let perIdx = {};             // { callId: currentIndex }
 
 // Statuses shown in the tag picker — grouped by operational relevance
 // AVAILABLE is NOT here — it lives as the separate "CLEAR UNIT" action
+// Row layout (2-col grid): EN ROUTE | IN THE AREA / ON SCENE | STAGING / ON SCENE OK | TRANSPORTING / CLEAR UNIT | TRANSPORT COMPLETE
 const TAG_PICKER_STATUSES = [
   { label: 'EN ROUTE',          value: 'en route',          log: false },
   { label: 'IN THE AREA',       value: 'in the area',        log: false },
-  { label: 'STAGING',           value: 'staging',            log: true  },
   { label: 'ON SCENE',          value: 'on scene',           log: true  },
+  { label: 'STAGING',           value: 'staging',            log: true  },
   { label: 'ON SCENE OK',       value: 'on scene ok',        log: true  },
   { label: 'TRANSPORTING',      value: 'transporting',       log: true  },
-  { label: 'TRANSPORT COMPLETE',value: 'transport complete', log: true  },
 ];
 
 // Full status list for the Unit Overview status picker — covers every status a unit can hold,
@@ -1574,8 +1574,8 @@ const OVERVIEW_PICKER_STATUSES = [
   { label: 'AVAIL. ON RADIO',    value: 'available on radio',    log: true  },
   { label: 'EN ROUTE',           value: 'en route',              log: false },
   { label: 'IN THE AREA',        value: 'in the area',           log: false },
-  { label: 'STAGING',            value: 'staging',               log: true  },
   { label: 'ON SCENE',           value: 'on scene',              log: true  },
+  { label: 'STAGING',            value: 'staging',               log: true  },
   { label: 'ON SCENE OK',        value: 'on scene ok',           log: true  },
   { label: 'TRANSPORTING',       value: 'transporting',          log: true  },
   { label: 'TRANSPORT COMPLETE', value: 'transport complete',    log: true  },
@@ -1611,20 +1611,26 @@ function renderUnitStatusPicker(currentStatus, statusClickFn, clearClickAttr, cl
         </div>`;
     }).join('');
   } else {
-    gridHtml = `<div class="tag-status-grid">${statuses.map(buildBtn).join('')}</div>`;
-  }
-
-  return `
-    ${gridHtml}
-    <div onclick="${clearClickAttr}"
-      style="width:100%;text-align:center;font-size:9px;font-weight:800;font-family:'Consolas',monospace;
-        margin-top:5px;padding:3px 0;border-radius:3px;cursor:pointer;letter-spacing:.4px;
-        background:rgba(255,85,85,0.12);color:#ff5555;border:1px solid rgba(255,85,85,0.3);
-        transition:background 0.1s;"
+    // Build the standard status buttons
+    const statusButtons = statuses.map(buildBtn).join('');
+    // Build TRANSPORT COMPLETE as a grid button (col 2, row 4)
+    const transportCompleteStatus = { label: 'TRANSPORT COMPLETE', value: 'transport complete', log: true };
+    const tcIsCurrent = currentStatus === transportCompleteStatus.value;
+    const tcColorCls = STATUS_STYLES[transportCompleteStatus.value] || 's-unavailable';
+    const tcBtn = `<div class="tag-status-btn ${tcColorCls}${tcIsCurrent ? ' active-status' : ''}"
+      onclick="${statusClickFn(transportCompleteStatus)}"
+      title="${transportCompleteStatus.value}">${transportCompleteStatus.label}</div>`;
+    // Build CLEAR UNIT as a grid button (col 1, row 4) styled like the clear action
+    const clearBtn = `<div onclick="${clearClickAttr}"
+      class="tag-status-btn"
+      style="background:rgba(255,85,85,0.12);color:#ff5555;border:1px solid rgba(255,85,85,0.3);"
       onmouseover="this.style.background='rgba(255,85,85,0.25)'"
       onmouseout="this.style.background='rgba(255,85,85,0.12)'"
-      title="${clearTitle}">${clearLabel}</div>
-  `;
+      title="${clearTitle}">${clearLabel}</div>`;
+    gridHtml = `<div class="tag-status-grid">${statusButtons}${clearBtn}${tcBtn}</div>`;
+  }
+
+  return `${gridHtml}`;
 }
 
 function openUnitTagModal(event, unitId, callId) {
@@ -2340,8 +2346,10 @@ function processLiveCommandAssist() {
           const evPending = cliEl ? (cliEl.dataset['pendingType_' + segIdx] || cliEl.dataset.pendingType || '') : '';
           const evMatch = !evPending ? FIRE_DISPATCH_LIST.find(function(d){ return d.code === ev.toUpperCase() || d.name === ev; }) : null;
           const evDisplay = evPending ? evPending : (evMatch ? evMatch.name + ' (' + evMatch.code + ')' : ev);
+          const locPending = cliEl ? (cliEl.dataset['pendingLocation_' + segIdx] || cliEl.dataset.pendingLocation || '') : '';
+          const locDisplay = locPending ? locPending : loc;
           let display = `Action: <span class='assist-valid'>[FIELD INITIATED INCIDENT]</span> ➔ Units: [${unitsStr}] | Event: <span style='color:var(--accent)'>${evDisplay || '...'}</span>`;
-          display += ` | Location: ${loc !== undefined ? "<span style='color:var(--accent)'>"+loc+"</span>" : "<span class='assist-highlight'>[Required, use / to separate]</span>"}`;
+          display += ` | Location: ${locDisplay !== undefined ? "<span style='color:var(--accent)'>"+locDisplay+"</span>" : "<span class='assist-highlight'>[Required, use / to separate]</span>"}`;
           if (com !== undefined) display += ` | Comments: <i style='color:var(--amber)'>${com}</i>`;
           if (veh !== undefined) display += ` | Vehicle: <i style='color:var(--purple)'>${veh}</i>`;
           if (loc === undefined) display += ` <span style='opacity:.6'>(format: FI [unit(s)] [event] / [location] / [comments] / [vehicle info])</span>`;
@@ -2349,8 +2357,16 @@ function processLiveCommandAssist() {
 
           if (!restHasSlash) {
             showCliTypeDropdown(ev);
+            hideCliLocationDropdown();
           } else {
             hideCliTypeDropdown();
+            // Show location dropdown while in the location segment (1st slash typed, 2nd not yet)
+            const locSegHasSlash = rest.slice(rest.indexOf('/') + 1).indexOf('/') !== -1;
+            if (!locSegHasSlash) {
+              showCliLocationDropdown(loc || '');
+            } else {
+              hideCliLocationDropdown();
+            }
           }
         }
       }
@@ -2958,16 +2974,30 @@ function executeSingleCommand(val, segIdx) {
       }
       if (!fiPriority) fiPriority = '2';
 
+      // Prefer structured locationObj from dropdown selection, same staleness
+      // check as II: only trust it if the location text wasn't edited after selecting.
+      var fiPendingLocation = cliInputEl ? (cliInputEl.dataset['pendingLocation_' + segIdx] || cliInputEl.dataset.pendingLocation || '') : '';
+      var fiPendingLocationObjRaw = cliInputEl ? (cliInputEl.dataset['pendingLocationObj_' + segIdx] || cliInputEl.dataset.pendingLocationObj || '') : '';
+      var fiLocationObj = null;
+      if (fiPendingLocationObjRaw && fiPendingLocation && fiPendingLocation === location) {
+        try { fiLocationObj = JSON.parse(fiPendingLocationObjRaw); } catch (e) { fiLocationObj = null; }
+      }
+      var fiSavedLocation = fiLocationObj ? formatLocationLabel(fiLocationObj) : location;
+
       if (cliInputEl) { 
         cliInputEl.dataset['pendingType_' + segIdx] = '';
         cliInputEl.dataset['pendingDept_' + segIdx] = '';
         cliInputEl.dataset['pendingPriority_' + segIdx] = '';
+        cliInputEl.dataset['pendingLocation_' + segIdx] = '';
+        cliInputEl.dataset['pendingLocationObj_' + segIdx] = '';
         cliInputEl.dataset.pendingType = '';
         cliInputEl.dataset.pendingDept = '';
         cliInputEl.dataset.pendingPriority = '';
+        cliInputEl.dataset.pendingLocation = '';
+        cliInputEl.dataset.pendingLocationObj = '';
       }
       const newCall = {
-        id: newId, type: eventType, location: location, priority: fiPriority, source: 'Field',
+        id: newId, type: eventType, location: fiSavedLocation, locationObj: fiLocationObj, priority: fiPriority, source: 'Field',
         dept: fiDept, comments: commentLog, assigned: [], vehicles: [], suspects: []
       };
       if (vehicleInfo) {
@@ -2984,7 +3014,11 @@ function executeSingleCommand(val, segIdx) {
       state.selectedCallId = newId; state.activeProfileView = 'CALL';
       toast(`🚨 Field Initiated Incident #${newId} created — ${eventType}`);
       switchTab('calls', document.querySelector('.nav-tab[onclick*="calls"]'));
-      updateMapPostalByLocation(location);
+      if (fiLocationObj && fiLocationObj.postal) {
+        sendPostalToEmbeddedMap(fiLocationObj.postal);
+      } else {
+        updateMapPostalByLocation(fiSavedLocation);
+      }
       processLiveCommandAssist(); renderCAD(); return;
     }
 
@@ -5105,6 +5139,11 @@ function switchTab(tab, el) {
   document.getElementById('right-panel').classList.add('hidden');
   document.getElementById('details-panel').classList.add('hidden');
   document.getElementById('units-panel').classList.add('hidden');
+  // col-right hosts the live-map panel (and details-panel). It must be
+  // hidden for the full-width bolos/history tabs too, or the map iframe
+  // keeps rendering underneath/behind that full-width content (visible as
+  // a sliver of the map peeking through at the panel's edges).
+  document.getElementById('col-right').classList.add('hidden');
   if (tab === 'bolos') {
     document.getElementById('tab-bolos').classList.remove('hidden');
     renderBoloBoard();
@@ -5115,6 +5154,7 @@ function switchTab(tab, el) {
     document.getElementById('right-panel').classList.remove('hidden');
     document.getElementById('details-panel').classList.remove('hidden');
     document.getElementById('units-panel').classList.remove('hidden');
+    document.getElementById('col-right').classList.remove('hidden');
     document.getElementById('tab-' + tab).classList.remove('hidden');
     renderCAD();
   }
