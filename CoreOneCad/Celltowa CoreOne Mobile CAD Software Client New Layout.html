@@ -494,7 +494,12 @@
     outline: none;
     border-color: var(--border-focus);
     background: var(--bg4);
-    box-shadow: 0 0 6px rgba(0, 210, 255, 0.15);
+    box-shadow: 0 0 6px rgba(0, 210, 255, 0.15), inset 0 0 0 1px rgba(0,210,255,0.15);
+  }
+  #narrative-append-input-dummy, [id^="narrative-append-input-"]:focus {
+    outline: none;
+    border-left: 5px solid var(--accent) !important;
+    box-shadow: inset 0 0 0 1px rgba(0,210,255,0.5), inset 4px 0 16px rgba(0,210,255,0.08);
   }
   label {
     display: block;
@@ -818,7 +823,7 @@
     min-height: 0;
     overflow: hidden;
   }
-  .incidents-table-wrap { flex: 1; overflow-y: auto; }
+  .incidents-table-wrap { flex: 1; overflow-y: auto; padding-bottom: 6px; }
   .incidents-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
   .incidents-table thead th {
     position: sticky;
@@ -870,8 +875,16 @@
   }
   .incidents-table tbody tr.incident-row:hover { background-color: #141b27; }
   .incidents-table tbody tr.incident-row.selected-call {
-    background-color: var(--selected-bg);
-    box-shadow: inset 0 0 0 1px rgba(0,210,255,0.2);
+    background-color: #112840;
+    border-left: 5px solid #33e8ff !important;
+    border-bottom: none;
+    box-shadow:
+      inset 0 1px 0 0 rgba(51,232,255,0.6),
+      inset -1px 0 0 0 rgba(51,232,255,0.6),
+      inset 4px 0 20px rgba(51,232,255,0.12);
+  }
+  .incidents-table tbody tr.incident-row.selected-call td {
+    color: #fff;
   }
   .incidents-table tbody tr.incident-row.drag-over {
     outline: 2px dashed var(--accent);
@@ -892,18 +905,18 @@
     border-bottom: 1px solid var(--border);
     overflow: hidden;
   }
-  .incidents-table td.col-incno { font-family: 'Consolas', monospace; font-weight: 700; color: var(--accent); font-size: 12px; }
+  .incidents-table td.col-incno { font-family: 'Consolas', monospace; font-weight: 700; color: var(--accent); font-size: 13px; }
   .incidents-table td.col-code {
     font-weight: 600;
     color: #fff;
-    font-size: 11.5px;
+    font-size: 12.5px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
   .incidents-table td.col-loc {
     color: var(--amber);
-    font-size: 11.5px;
+    font-size: 12.5px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -916,12 +929,41 @@
     flex-wrap: wrap;
     gap: 4px;
   }
-  .incidents-row-units .call-unit-tag { padding: 2px 6px; font-size: 9px; }
+  .incidents-row-units .call-unit-tag { padding: 2px 6px; font-size: 11px; }
   .incidents-row-units .call-unit-tag.tag-expanded {
     position: relative;
     z-index: 20;
   }
-  .incidents-empty-row td {
+  /* ── Narrative row (shown for the selected incident only) ── */
+  .incident-narrative-row {
+    display: none;
+  }
+  .incident-narrative-row.narrative-active {
+    display: table-row;
+  }
+  .incident-narrative-row td {
+    padding: 4px 8px 8px 8px;
+    background: #0a1520;
+    border-bottom: 1px solid var(--border);
+    border-left: 5px solid rgba(51,232,255,0.3);
+  }
+  /* When the row above is selected, the narrative row continues that same
+     highlight — thick cyan left border carried straight through, plus a
+     matching ring on the remaining sides — so the two rows read as one
+     continuous highlighted block rather than two separate pieces. */
+  .incident-narrative-row.narrative-active td {
+    background: #112840;
+    border-left: 5px solid #33e8ff;
+    border-bottom: 1px solid #33e8ff;
+    box-shadow:
+      inset -1px 0 0 0 rgba(51,232,255,0.6),
+      inset 4px 0 20px rgba(51,232,255,0.12);
+  }
+  .incident-narrative-inner {
+    padding-left: 0;
+  }
+
+    .incidents-empty-row td {
     text-align: center;
     color: var(--muted);
     padding: 40px 16px;
@@ -964,6 +1006,7 @@
     min-height: 0;
     overflow-y: auto;
     overflow-x: hidden;
+    padding-bottom: 6px;
   }
 
   .units-mini-table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
@@ -984,9 +1027,8 @@
     text-overflow: ellipsis;
     z-index: 4;
   }
-  .units-mini-table th.ucol-th-unit { width: 24%; }
-  .units-mini-table th.ucol-th-status { width: 17%; }
-  .units-mini-table th.ucol-th-dept { width: 15%; }
+  .units-mini-table th.ucol-th-unit { width: 42%; }
+  .units-mini-table th.ucol-th-unit-wide { width: 44%; }
   .units-mini-table th.ucol-th-wide { width: auto; }
 
   .units-mini-table thead th.sortable {
@@ -1008,7 +1050,7 @@
   .units-mini-table tbody tr.unit-row {
     cursor: grab;
     border-bottom: 1px solid var(--border);
-    border-left: 2px solid transparent;
+    border-left: 3px solid transparent;
     transition: background-color 0.15s, border-color 0.15s;
   }
   .units-mini-table tbody tr.unit-row:active { cursor: grabbing; }
@@ -1029,10 +1071,10 @@
   .units-mini-table td.ucol-td-unit {
     font-weight: 700;
     color: #fff;
-    font-size: 11px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    font-size: 12px;
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
   .units-mini-table td.ucol-td-meta {
     font-size: 9.5px;
@@ -1041,9 +1083,6 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .units-mini-table td.ucol-td-dept { padding: 6px 4px; text-align: left; }
-  .units-mini-table td.ucol-td-status { padding: 6px 4px; text-align: left; }
-  .units-mini-table td.ucol-td-status .unit-status { font-size: 8px; padding: 2px 6px; display: inline-block; }
   .units-mini-table td.ucol-td-incident {
     font-size: 10px;
     color: var(--accent);
@@ -1188,6 +1227,45 @@
     background: rgba(0,0,0,0.25);
     border-radius: 8px;
 }
+
+  /* ── Section 4 tab strip: Comments | Vehicles | Persons — classic
+       single-panel tabs in the call profile (details-panel). Reuses the
+       same visual language as .dept-tab elsewhere in the app. ── */
+  .details-tab-strip {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    overflow: hidden;
+    margin: 24px 0 0;
+    background: var(--bg2);
+  }
+  .details-tab {
+    flex: 1;
+    text-align: center;
+    padding: 9px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    cursor: pointer;
+    border-right: 1px solid var(--border);
+    transition: all .15s ease;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    user-select: none;
+  }
+  .details-tab:last-child { border-right: none; }
+  .details-tab:hover { background: var(--bg3); color: var(--text); }
+  .details-tab.details-tab-active { color: var(--accent); background: #090e17; box-shadow: inset 0 -2px 0 var(--accent); }
+  .details-tab .details-tab-count { color: var(--accent); font-size: 10px; font-weight: 600; margin-left: 2px; }
+  .details-tab.details-tab-active .details-tab-count { color: var(--accent); }
+  .details-tab-panel {
+    border: 1px solid var(--border);
+    border-top: none;
+    border-radius: 0 0 6px 6px;
+    padding: 14px 12px;
+    margin-bottom: 16px;
+    background: rgba(255,255,255,0.01);
+  }
 
   #toast {
     position: fixed;15:59 06/13/26
@@ -1348,7 +1426,7 @@
         <div class="units-col-header units-col-header-avail">Avail <span class="sub-badge-count" id="ucol-available-count">(0)</span></div>
         <div class="units-col-scroll">
           <table class="units-mini-table">
-            <thead><tr><th class="ucol-th-dept"></th><th class="ucol-th-unit">Unit</th><th class="ucol-th-wide">Capabilities/Dept</th></tr></thead>
+            <thead><tr><th class="ucol-th-unit">Unit</th><th class="ucol-th-wide">Capabilities/Dept</th></tr></thead>
             <tbody id="units-col-available"></tbody>
           </table>
         </div>
@@ -1357,7 +1435,7 @@
         <div class="units-col-header units-col-header-active">Active <span class="sub-badge-count" id="ucol-active-count">(0)</span></div>
         <div class="units-col-scroll">
           <table class="units-mini-table">
-            <thead><tr><th class="ucol-th-unit sortable" id="th-active-unit-sort" onclick="setActiveUnitSort()" title="Sort by last update from dispatcher">Unit <span class="sort-arrow" id="active-unit-sort-arrow">⇕</span></th><th class="ucol-th-status">Status</th><th class="ucol-th-wide">Incident</th></tr></thead>
+            <thead><tr><th class="ucol-th-unit-wide sortable" id="th-active-unit-sort" onclick="setActiveUnitSort()" title="Sort by last update from dispatcher">Unit <span class="sort-arrow" id="active-unit-sort-arrow">⇕</span></th><th class="ucol-th-wide">Incident</th></tr></thead>
             <tbody id="units-col-activegrp"></tbody>
           </table>
         </div>
@@ -1366,7 +1444,7 @@
         <div class="units-col-header units-col-header-unavail">Unavail <span class="sub-badge-count" id="ucol-unavailable-count">(0)</span></div>
         <div class="units-col-scroll">
           <table class="units-mini-table">
-            <thead><tr><th class="ucol-th-dept"></th><th class="ucol-th-unit">Unit</th><th class="ucol-th-wide">Capabilities/Dept</th></tr></thead>
+            <thead><tr><th class="ucol-th-unit-wide">Unit</th><th class="ucol-th-wide">Capabilities/Dept</th></tr></thead>
             <tbody id="units-col-unavailable"></tbody>
           </table>
         </div>
@@ -1549,10 +1627,10 @@ let unitGroupCollapsed = { 'Available': false, 'Active': false, 'Unavailable': f
 let unitTagModal = null; // { unitId, callId } when the unit-tag status modal is open, else null
 let expandedUnitStatusId = null; // tracks which unit card's status picker is open in Unit Overview (unit.id, or "composite_<groupId>")
 let vehSectionOpen = true;   // vehicles section collapsed state
-let unitsSectionOpen = true; // call-profile units section collapsed state
 let perSectionOpen = true;   // persons section collapsed state
 let vehIdx = {};             // { callId: currentIndex }
 let perIdx = {};             // { callId: currentIndex }
+let detailsTab = {};         // { callId: 'comments' | 'vehicles' | 'persons' } — active tab in the call profile's Section 4 (Comments/Vehicles/Persons)
 
 // Statuses shown in the tag picker — grouped by operational relevance
 // AVAILABLE is NOT here — it lives as the separate "CLEAR UNIT" action
@@ -1574,8 +1652,8 @@ const OVERVIEW_PICKER_STATUSES = [
   { label: 'AVAIL. ON RADIO',    value: 'available on radio',    log: true  },
   { label: 'EN ROUTE',           value: 'en route',              log: false },
   { label: 'IN THE AREA',        value: 'in the area',           log: false },
-  { label: 'ON SCENE',           value: 'on scene',              log: true  },
   { label: 'STAGING',            value: 'staging',               log: true  },
+  { label: 'ON SCENE',           value: 'on scene',               log: true  },
   { label: 'ON SCENE OK',        value: 'on scene ok',           log: true  },
   { label: 'TRANSPORTING',       value: 'transporting',          log: true  },
   { label: 'TRANSPORT COMPLETE', value: 'transport complete',    log: true  },
@@ -1889,8 +1967,8 @@ function clearUnitFromOverview(event, unitId) {
 }
 
 function toggleVehSection() { vehSectionOpen = !vehSectionOpen; renderCAD(); }
-function toggleUnitsSection() { unitsSectionOpen = !unitsSectionOpen; renderCAD(); }
 function togglePerSection() { perSectionOpen = !perSectionOpen; renderCAD(); }
+function setDetailsTab(callId, tab) { detailsTab[callId] = tab; renderCAD(); }
 function navVeh(callId, dir) {
   var call = state.calls.find(function(c){ return c.id === callId; });
   if (!call || !call.vehicles.length) return;
@@ -1918,8 +1996,8 @@ const SHORTHAND_MAP = {
 };
 
 const DEPT_CAPS = {
-  Law: ['Air', 'CID', 'Command', 'Gang', 'K9', 'Motor', 'Patrol', 'Speed Unit', 'Supervisor', 'SWAT', 'Wildlife'],
-  Fire: ['Engine', 'ALS Ambulance', 'BLS Ambulance', 'Ladder Truck', 'Rescue Squad', 'Tanker', 'Brush', 'Command', 'Hazmat', 'Life Flight', 'Wildland']
+  Law: ['Command', 'Supervisor', 'K9', 'Speed Unit', 'SWAT', 'Air', 'Motor', 'CID', 'Gang', 'Wildlife', 'Patrol'],
+  Fire: ['Command', 'Engine', 'ALS Ambulance', 'BLS Ambulance', 'Ladder Truck', 'Rescue Squad', 'Tanker', 'Brush', 'Hazmat', 'Life Flight', 'Wildland']
 };
 
 const DISPOSITIONS = {
@@ -3027,7 +3105,7 @@ function executeSingleCommand(val, segIdx) {
         if (u) { u.status = 'on scene'; touchUnitStatus(u); }
       });
 
-      state.selectedCallId = newId; state.activeProfileView = 'CALL';
+      state.selectedCallId = newId; state.activeProfileView = 'CALL'; detailsTab[newId] = 'comments';
       toast(`🚨 Field Initiated Incident #${newId} created — ${eventType}`);
       switchTab('calls', document.querySelector('.nav-tab[onclick*="calls"]'));
       if (fiLocationObj && fiLocationObj.postal) {
@@ -3106,7 +3184,7 @@ function executeSingleCommand(val, segIdx) {
         if (u) { u.status = 'on scene'; touchUnitStatus(u); }
       });
 
-      state.selectedCallId = newId; state.activeProfileView = 'CALL';
+      state.selectedCallId = newId; state.activeProfileView = 'CALL'; detailsTab[newId] = 'comments';
       toast(`🚦 Traffic Stop #${newId} initiated — ${location}`);
       switchTab('calls', document.querySelector('.nav-tab[onclick*="calls"]'));
       if (tsLocationObj && tsLocationObj.postal) {
@@ -3202,7 +3280,7 @@ function executeSingleCommand(val, segIdx) {
         dept: iiDept, comments: commentLog, assigned: [], vehicles: [], suspects: []
       };
       state.calls.push(newCall);
-      state.selectedCallId = newId; state.activeProfileView = 'CALL';
+      state.selectedCallId = newId; state.activeProfileView = 'CALL'; detailsTab[newId] = 'comments';
       toast(`📟 Incident #${newId} initiated — ${eventType} @ ${iiSavedLocation}`);
       switchTab('calls', document.querySelector('.nav-tab[onclick*="calls"]'));
       processLiveCommandAssist(); renderCAD(); return;
@@ -3346,6 +3424,7 @@ function executeSingleCommand(val, segIdx) {
         switchTab('calls', document.querySelector('.nav-tab[onclick*="calls"]'));
         state.selectedCallId = callToken;
         state.activeProfileView = 'CALL';
+        detailsTab[callToken] = 'comments';
       } else if (yn === 'N') {
         toast(`Incident #${callToken} remains closed.`);
       } else {
@@ -3370,6 +3449,7 @@ function executeSingleCommand(val, segIdx) {
       }
       state.selectedCallId = call.id;
       state.activeProfileView = 'CALL';
+      detailsTab[call.id] = 'comments';
       toast("📋 Incident #" + call.id + " recalled to workspace.");
       switchTab('calls', document.querySelector('.nav-tab[onclick*="calls"]'));
       processLiveCommandAssist(); renderCAD(); return;
@@ -4014,6 +4094,42 @@ function callMatchesDept(c, dept) {
 function escHtml(s) {
   return (s == null ? '' : String(s)).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
+function buildHoverNarrative(comments) {
+  if (!comments || !comments.trim()) return '';
+  var lines = comments.split('\n').filter(function(l){ return l.trim(); });
+  if (!lines.length) return '';
+
+  // BOLOs always stay pinned in the Incident Overview preview. UPDATE lines
+  // (location/event-type changes) are pinned too, but only the most recent
+  // of each subtype — older location/event updates are allowed to roll off.
+  var boloRe = /^\[[^\]]+\]\[BOLO\]:/i;
+  var updateRe = /^\[[^\]]+\]\[UPDATE\]:\s*(Location|Event)\s*—/i;
+
+  var first = lines[0];
+  var rest = lines.slice(1);
+  var last3 = rest.slice(-3);
+  var recentWindow = [first].concat(last3);
+
+  var pinned = lines.filter(function(l) { return boloRe.test(l); });
+
+  var lastLocationUpdate = null, lastEventUpdate = null;
+  lines.forEach(function(l) {
+    var m = l.match(updateRe);
+    if (!m) return;
+    if (/location/i.test(m[1])) lastLocationUpdate = l;
+    else lastEventUpdate = l;
+  });
+  if (lastLocationUpdate) pinned.push(lastLocationUpdate);
+  if (lastEventUpdate) pinned.push(lastEventUpdate);
+
+  // Merge pinned + recent window, de-duped, restored to original chronological order.
+  var keepSet = {};
+  recentWindow.concat(pinned).forEach(function(l) { keepSet[l] = true; });
+  var entries = lines.filter(function(l) { return keepSet[l]; });
+
+  return formatNarrative(entries.join('\n'), true);
+}
+
 function applyAngleBold(raw) {
   // Bold anything between < > — we work on already-rendered text so escape HTML first
   return raw
@@ -4076,7 +4192,7 @@ function formatNarrative(comments, compact) {
   // A hairline rule separates when source type changes (911→DISP, DISP→unit, etc).
   return rows.map(function(r, idx) {
     if (r.raw) {
-      return '<div style="font-size:12px;color:var(--muted);padding:3px 0 3px 10px;border-left:3px solid var(--border);margin:1px 0;">'
+      return '<div style="font-size:13px;color:var(--muted);padding:3px 0 3px 10px;border-left:3px solid var(--border);margin:1px 0;">'
         + applyAngleBold(r.text) + '</div>';
     }
     var tc  = getTagColor(r.tag);
@@ -4098,7 +4214,7 @@ function formatNarrative(comments, compact) {
         + '<span style="font-family:\'Consolas\',monospace;font-size:10px;color:var(--muted);letter-spacing:.1px;">' + r.time + '</span>'
       + '</div>'
       // Line 2: message
-      + '<div style="font-size:12px;color:' + (r.tag === 'UPDATE' || r.tag === 'SYSTEM' || r.tag === 'BOLO' ? tc.color : 'var(--text)') + ';line-height:1.5;font-weight:' + (r.tag === 'UPDATE' || r.tag === 'SYSTEM' || r.tag === 'BOLO' ? '600' : 'normal') + ';">'
+      + '<div style="font-size:13px;color:' + (r.tag === 'UPDATE' || r.tag === 'SYSTEM' || r.tag === 'BOLO' ? tc.color : 'var(--text)') + ';line-height:1.5;font-weight:' + (r.tag === 'UPDATE' || r.tag === 'SYSTEM' || r.tag === 'BOLO' ? '600' : 'normal') + ';">'
         + msg
       + '</div>'
       + '</div>';
@@ -4251,7 +4367,7 @@ function renderCAD() {
         const statusPickerRow = ''; // no longer used — modal replaces inline expansion
 
         if (groupName === 'Active') {
-          // Unit | Status | Incident # + Event Code
+          // Unit (callsign + status, stacked) | Incident # + Event Code — dept conveyed by the row's colored left rail
           let incidentCell = '<span style="color:var(--muted);">—</span>';
           if (u.assignedCall) {
             const matchingCall = state.calls.find(c => c.id === u.assignedCall);
@@ -4265,24 +4381,34 @@ function renderCAD() {
           const compositeNote = u.isComposite ? `<span class="ucol-incident-loc">👥 ${u.memberCallsigns.join(' / ')}</span>` : '';
 
           return `
-  <tr class="unit-row ${deptRail} ${isSelected}" ${dragAttrs} onclick="${clickFn}">
-    <td class="ucol-td-unit">${displayName}</td>
-    <td class="ucol-td-status"><span class="unit-status ${cls} status-clickable" onclick="event.stopPropagation(); openUnitTagModal(event,'${u.id}',null)" title="${u.status.toUpperCase()} — click to change status">${STATUS_SHORTHAND[u.status] || u.status.toUpperCase()}</span></td>
+  <tr class="unit-row ${deptRail} ${isSelected}" ${dragAttrs} onclick="${clickFn}" title="${u.dept || ''} unit">
+    <td class="ucol-td-unit">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
+        <span>${displayName}</span>
+        <span class="unit-status ${cls} status-clickable" style="font-size:8px;padding:2px 5px;" onclick="event.stopPropagation(); openUnitTagModal(event,'${u.id}',null)" title="${u.status.toUpperCase()} — click to change status">${STATUS_SHORTHAND[u.status] || u.status.toUpperCase()}</span>
+      </div>
+    </td>
     <td class="ucol-td-incident" onclick="event.stopPropagation(); ${u.assignedCall ? `openCallProfile('${u.assignedCall}')` : ''}">${incidentCell}${compositeNote}</td>
   </tr>`;
         }
 
-        // Avail / Unavail: Dept | Unit | Capabilities/Dept
-        const deptBadge = u.dept ? `<span class="dept-${u.dept.toLowerCase()}">${u.dept.toUpperCase()}</span>` : '';
+        // Avail / Unavail: Unit (callsign [+ status if unavail], stacked) | Capabilities/Dept — dept conveyed by the row's colored left rail
         const metaParts = [];
         if (u.agency) metaParts.push(u.agency);
-        if (u.caps && u.caps.length) metaParts.push(u.caps.join(' · '));
+        if (u.caps && u.caps.length) { const capOrder = (DEPT_CAPS[u.dept] || []); const sortedCaps = u.caps.slice().sort((a, b) => { const ai = capOrder.indexOf(a); const bi = capOrder.indexOf(b); return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi); }); metaParts.push(sortedCaps.join(' · ')); }
         const compositeMeta = u.isComposite ? `👥 ${u.memberCallsigns.join(' / ')}` : metaParts.join(' &bull; ');
+        const unavailPill = groupName === 'Unavailable'
+          ? `<span class="unit-status ${cls} status-clickable" style="font-size:8px;padding:2px 5px;" onclick="event.stopPropagation(); openUnitTagModal(event,'${u.id}',null)" title="${u.status.toUpperCase()} — click to change status">${STATUS_SHORTHAND[u.status] || u.status.toUpperCase()}</span>`
+          : '';
 
         return `
-  <tr class="unit-row ${deptRail} ${isSelected}" ${dragAttrs} onclick="${clickFn}">
-    <td class="ucol-td-dept">${deptBadge}</td>
-    <td class="ucol-td-unit" onclick="event.stopPropagation(); openUnitTagModal(event,'${u.id}',null)" style="cursor:pointer;" title="Click to change status">${displayName}</td>
+  <tr class="unit-row ${deptRail} ${isSelected}" ${dragAttrs} onclick="${clickFn}" title="${u.dept || ''} unit">
+    <td class="ucol-td-unit" onclick="event.stopPropagation(); openUnitTagModal(event,'${u.id}',null)" style="cursor:pointer;white-space:normal;overflow:visible;text-overflow:clip;" title="Click to change status">
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px;">
+        <span>${displayName}</span>
+        ${unavailPill}
+      </div>
+    </td>
     <td class="ucol-td-meta">${compositeMeta}</td>
   </tr>`;
       }).join('');
@@ -4422,6 +4548,7 @@ function renderCAD() {
 
       const assignedTags = renderCallUnitTags(c);
 
+      const rowNarrative = buildHoverNarrative(c.comments);
       return `
   <tr class="incident-row row-${pClass} ${isSelected}"
      onclick="openCallProfile('${c.id}')"
@@ -4434,8 +4561,13 @@ function renderCAD() {
     <td class="col-loc" title="${c.location || 'Unknown Location'}"> ${c.location || 'Unknown Location'}</td>
     <td class="col-units">
       <div class="incidents-row-units">
-        ${assignedTags || '<span style="color:var(--muted); font-size:10px;">No units routed</span>'}
+        ${assignedTags || '<span style="color:var(--muted); font-size:11px;">No units routed</span>'}
       </div>
+    </td>
+  </tr>
+  <tr class="incident-narrative-row ${isSelected ? 'narrative-active' : ''}">
+    <td colspan="5">
+      <div class="incident-narrative-inner" data-overview-narrative="${c.id}">${rowNarrative || '<span style="font-size:10px;color:var(--muted);font-style:italic;">No log entries yet</span>'}</div>
     </td>
   </tr>
 `;
@@ -4719,7 +4851,7 @@ function renderHistoryBoard() {
           <div style="display:flex;align-items:center;gap:8px;">
             <span class="rb-suspect" style="padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;">${c.disposition} — ${DISPOSITIONS[c.disposition] || 'Unknown'}</span>
             <span style="font-size:11px;color:var(--muted);">Closed ${c.closedAt || ''}${c.closedBy ? ' by ' + c.closedBy : ''}</span>
-            <button class="btn btn-sm btn-primary" onclick="reopenCall('${c.id}'); state.selectedCallId='${c.id}'; state.activeProfileView='CALL'; switchTab('calls', document.querySelector('.nav-tab[onclick*=\\'calls\\']'));">Reopen</button>
+            <button class="btn btn-sm btn-primary" onclick="reopenCall('${c.id}'); state.selectedCallId='${c.id}'; state.activeProfileView='CALL'; detailsTab['${c.id}']='comments'; switchTab('calls', document.querySelector('.nav-tab[onclick*=\\'calls\\']'));">Reopen</button>
           </div>
         </div>
       </div>`;
@@ -4845,13 +4977,13 @@ function dispatchProfileSplitViewRenderer() {
     const priBg = priBgs[priNum] || 'rgba(80,250,123,0.2)';
     const isActiveAssignment = call.assigned && call.assigned.length > 0;
     const assignBadge = isActiveAssignment
-      ? `<span style="font-size:9px;font-weight:800;letter-spacing:0.4px;padding:2px 7px;border-radius:4px;background:rgba(189,147,249,0.18);color:var(--purple);border:1px solid var(--purple);opacity:0.9;margin-left:8px;flex-shrink:0;">ACTIVE</span>`
-      : `<span style="font-size:9px;font-weight:800;letter-spacing:0.4px;padding:2px 7px;border-radius:4px;background:rgba(255,184,108,0.15);color:var(--amber);border:1px solid var(--amber);opacity:0.9;margin-left:8px;flex-shrink:0;">PENDING</span>`;
+      ? `<span style="font-size:10px;font-weight:800;letter-spacing:0.4px;padding:2px 8px;border-radius:4px;background:rgba(189,147,249,0.18);color:var(--purple);border:1px solid var(--purple);opacity:0.9;margin-left:8px;flex-shrink:0;line-height:14px;">ACTIVE</span>`
+      : `<span style="font-size:10px;font-weight:800;letter-spacing:0.4px;padding:2px 8px;border-radius:4px;background:rgba(255,184,108,0.15);color:var(--amber);border:1px solid var(--amber);opacity:0.9;margin-left:8px;flex-shrink:0;line-height:14px;">PENDING</span>`;
     panelTitle.innerHTML = `<span style="display:flex;align-items:center;width:100%;">` +
       `<span style="color:var(--muted);font-weight:600;font-size:11px;margin-right:8px;">#${call.id}</span>` +
       `<span style="color:var(--text);font-weight:700;font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${eventName}</span>` +
       assignBadge +
-      `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;background:${priBg};color:${priColor};border:1px solid ${priColor};opacity:0.9;margin-left:8px;flex-shrink:0;">PRI-${priNum}</span>` +
+      `<span style="font-size:10px;font-weight:800;padding:2px 8px;border-radius:4px;background:${priBg};color:${priColor};border:1px solid ${priColor};opacity:0.9;margin-left:8px;flex-shrink:0;line-height:14px;">PRI-${priNum}</span>` +
       `<button onclick="closeProfileViewer()" title="Minimize" style="background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:2px 6px;border-radius:4px;line-height:1;margin-left:10px;flex-shrink:0;">✕</button>` +
       `</span>`;
 
@@ -4860,7 +4992,7 @@ function dispatchProfileSplitViewRenderer() {
     if (!call.suspects) call.suspects = [];
 
     const involvementOptions = ['Victim', 'Witness', 'Complainant', 'Suspect', 'Involved', 'Missing Person', 'Wanted Person'];
-    const getBadgeClass = (inv) => `relational-badge rb-${inv.toLowerCase().replace(' ', '')}`;
+    const getBadgeClass = (inv) => `relational-badge rb-${(inv || 'involved').toLowerCase().replace(' ', '')}`;
 
     const curVehIdx = vehIdx[call.id] || 0;
     const curPerIdx = perIdx[call.id] || 0;
@@ -4931,72 +5063,105 @@ function dispatchProfileSplitViewRenderer() {
         </div>`;
     })();
 
+    // Active Section 4 tab (Comments / Vehicles / Persons) — defaults to Comments
+    const activeDTab = detailsTab[call.id] || 'comments';
+
     container.innerHTML = `
 
-      <div class="form-group" style="position:relative;">
-        <label>Call Type / Classification Code</label>
-        <input type="text" id="call-type-input" value="${call.type}" autocomplete="off" tabindex="1"
-          placeholder="Search name or type code (e.g. TS, SF, SHOOT, DOM)..."
-          style="margin-bottom:0;"
-          oninput="cadTypeSearch(this)"
-          onkeydown="cadTypeKey(event)"
-          onfocus="cadTypeSearch(this)"
-          onblur="setTimeout(function(){ var d=document.getElementById('cad-type-dropdown'); if(d) d.style.display='none'; }, 150)">
-        <div id="cad-type-dropdown" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 2px);background:#0d1117;border:1px solid var(--accent);border-radius:6px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.7);"></div>
-        
-      </div>
-      <div class="form-row" style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px;">
-        <div class="form-group"><label style="margin-bottom:5px;">Priority</label><select id="priority-select" tabindex="-1" onchange="saveCallProfileField('priority', this.value)"><option value="1" ${call.priority==='1'?'selected':''}>Priority 1 — Emergency</option><option value="2" ${call.priority==='2'?'selected':''}>Priority 2 — Urgent</option><option value="3" ${call.priority==='3'?'selected':''||!call.priority}>Priority 3 — Routine</option></select></div>
-        <div class="form-group"><label style="margin-bottom:5px;">Origin</label><select tabindex="-1" onchange="saveCallProfileField('source', this.value)"><option value="911" ${call.source==='911'?'selected':''}>911 Line Entry</option><option value="Field" ${call.source==='Field'?'selected':''}>Officer Self-Initiated</option></select></div>
-      </div>
-      <div class="form-group" style="margin-top:12px;position:relative;">
-        <label style="margin-bottom:5px;display:block;">Location / Intersection Grid Coordinate</label>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <input id="call-location-input-${call.id}" type="text" tabindex="2" autocomplete="off" placeholder="e.g. Legion Square, or search by postal/road/landmark"
-            value="${call.location}"
-            onchange="saveCallProfileField('location', this.value)"
-            oninput="locationTypeSearch(this)"
-            onkeydown="locationKey(event)"
-            onfocus="locationTypeSearch(this)"
-            onblur="setTimeout(function(){ var d=document.getElementById('location-dropdown'); if(d) d.style.display='none'; }, 150)"
-            style="flex:1;margin-bottom:0;">
-          <button class="btn btn-sm btn-primary" type="button" style="padding:6px 12px;white-space:nowrap;height:36px;display:flex;align-items:center;justify-content:center;" onclick="mapItFromCallLocation('${call.id}')">🌎</button>
+      <div class="section-title" style="margin-top:0;">Incident Details</div>
+
+      <div style="background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px;box-shadow:inset 0 1px 3px rgba(0,0,0,0.2);margin-bottom:16px;">
+
+        <!-- ── Section 1: CALL TYPE / CODE / PRI / ORIGIN ── -->
+        <div class="form-row" style="display:grid; grid-template-columns:3fr 1.4fr 1.2fr; gap:10px; margin-bottom:16px;">
+          <div class="form-group" style="position:relative;margin-bottom:0;">
+            <label style="margin-bottom:6px;display:block;">Call Type / Code</label>
+            <input type="text" id="call-type-input" value="${call.type}" autocomplete="off" tabindex="1"
+              placeholder="Search name or type code (e.g. TS, SF, SHOOT, DOM)..."
+              style="margin-bottom:0;height:36px;box-sizing:border-box;"
+              oninput="cadTypeSearch(this)"
+              onkeydown="cadTypeKey(event)"
+              onfocus="cadTypeSearch(this)"
+              onblur="setTimeout(function(){ var d=document.getElementById('cad-type-dropdown'); if(d) d.style.display='none'; }, 150)">
+            <div id="cad-type-dropdown" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 2px);background:#0d1117;border:1px solid var(--accent);border-radius:6px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.7);"></div>
+          </div>
+          <div class="form-group" style="margin-bottom:0;"><label style="margin-bottom:6px;display:block;">Priority</label><select id="priority-select" tabindex="-1" onchange="saveCallProfileField('priority', this.value)" style="margin-bottom:0;height:36px;box-sizing:border-box;"><option value="1" ${call.priority==='1'?'selected':''}>PRI-1 — Emergency</option><option value="2" ${call.priority==='2'?'selected':''}>PRI-2 — Urgent</option><option value="3" ${call.priority==='3'?'selected':''||!call.priority}>PRI-3 — Routine</option></select></div>
+          <div class="form-group" style="margin-bottom:0;"><label style="margin-bottom:6px;display:block;">Origin</label><select tabindex="-1" onchange="saveCallProfileField('source', this.value)" style="margin-bottom:0;height:36px;box-sizing:border-box;"><option value="911" ${call.source==='911'?'selected':''}>911 Line Entry</option><option value="Field" ${call.source==='Field'?'selected':''}>Officer Self-Initiated</option></select></div>
         </div>
-        <div id="location-dropdown" style="display:none;position:absolute;left:0;right:54px;top:calc(100% + 2px);background:#0d1117;border:1px solid var(--accent);border-radius:6px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.7);"></div>
+
+        <div style="border-top:1px solid var(--border);margin:16px -16px 16px;"></div>
+
+        <!-- ── Section 2: Location / Intersection Grid Coordinate ── -->
+        <div class="form-group" style="position:relative;margin-bottom:0;">
+          <label style="margin-bottom:6px;display:block;">Location / Intersection Grid Coordinate</label>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="call-location-input-${call.id}" type="text" tabindex="2" autocomplete="off" placeholder="e.g. Legion Square, or search by postal/road/landmark"
+              value="${call.location}"
+              onchange="saveCallProfileField('location', this.value)"
+              oninput="locationTypeSearch(this)"
+              onkeydown="locationKey(event)"
+              onfocus="locationTypeSearch(this)"
+              onblur="setTimeout(function(){ var d=document.getElementById('location-dropdown'); if(d) d.style.display='none'; }, 150)"
+              style="flex:1;margin-bottom:0;">
+            <button class="btn btn-sm btn-primary" type="button" style="padding:6px 12px;white-space:nowrap;height:35px;display:flex;align-items:center;justify-content:center;" onclick="mapItFromCallLocation('${call.id}')">🌎</button>
+          </div>
+          <div id="location-dropdown" style="display:none;position:absolute;left:0;right:54px;top:calc(100% + 2px);background:#0d1117;border:1px solid var(--accent);border-radius:6px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.7);"></div>
+        </div>
+
       </div>
 
-
-      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">Comments <span style="font-size:10px;color:var(--muted);font-weight:400;text-transform:none;letter-spacing:0;">Use &lt;text&gt; to bold</span></div>
-      <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;max-height:200px;overflow-y:auto;margin-bottom:8px;" id="narrative-feed-${call.id}">
-        ${formatNarrative(call.comments, false) || '<div style="color:var(--muted);font-style:italic;font-size:12px;padding:8px 0;">No log entries yet.</div>'}
-      </div>
-      <div style="display:flex;gap:6px;margin-bottom:16px;">
-        <input type="text" id="narrative-append-input-${call.id}" tabindex="3" placeholder="Append note to log... (Enter to save)" style="margin-bottom:0;flex:1;" onkeydown="if(event.key==='Enter'){appendNarrativeEntry('${call.id}',this.value);this.value='';}">
-      </div>
-
-      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleUnitsSection()">
-        <span>Units ${call.assigned.length ? '<span style="color:var(--accent);font-size:10px;font-weight:600;">('+call.assigned.length+')</span>' : ''} <span style="color:var(--muted);font-size:11px;">${unitsSectionOpen ? '▲' : '▼'}</span></span>
+      <!-- ── Section 3: Units (always visible — never collapsed, officer safety data) ── -->
+      <div class="section-title" style="margin-bottom:10px;">
+        Units ${call.assigned.length ? '<span style="color:var(--accent);font-size:10px;font-weight:600;">('+call.assigned.length+')</span>' : ''}
       </div>
       <div id="call-units-container"
-        style="display:${unitsSectionOpen?'block':'none'};min-height:44px;border-radius:8px;padding:4px;margin-bottom:16px;transition:background-color 0.15s;"
+        style="background:var(--bg2);border:1px solid var(--border);box-shadow:inset 0 1px 3px rgba(0,0,0,0.2);min-height:44px;border-radius:8px;padding:12px;margin-bottom:16px;transition:background-color 0.15s;"
         ondragover="event.preventDefault(); event.dataTransfer.dropEffect='move'; this.classList.add('drag-over');"
         ondragleave="this.classList.remove('drag-over');"
         ondrop="this.classList.remove('drag-over'); handleDrop(event, '${call.id}');">
         <div class="call-units" style="margin-top:0;">${renderCallUnitTags(call) || '<span style="color:var(--muted);font-size:11px;">No units routed — drag a unit here from Unit Overview, or dispatch with DE [Unit] '+call.id+'</span>'}</div>
       </div>
 
-      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" onclick="toggleVehSection()">
-        <span>Vehicles ${call.vehicles.length ? '<span style="color:var(--accent);font-size:10px;font-weight:600;">('+call.vehicles.length+')</span>' : ''} <span style="color:var(--muted);font-size:11px;">${vehSectionOpen ? '▲' : '▼'}</span></span>
-        <button class="btn btn-sm btn-primary" style="font-size:10px;padding:2px 10px;" onclick="event.stopPropagation();addVehicleToCall('${call.id}')">Add</button>
+      <!-- ── Section 4: Comments / Vehicles / Persons — classic tabs, one panel visible at a time ── -->
+      <div class="details-tab-strip" role="tablist">
+        <div class="details-tab ${activeDTab==='comments' ? 'details-tab-active' : ''}" role="tab" onclick="setDetailsTab('${call.id}','comments')">Comments<span class="details-tab-count">(${(call.comments ? call.comments.split('\n').filter(Boolean).length : 0)})</span></div>
+        <div class="details-tab ${activeDTab==='vehicles' ? 'details-tab-active' : ''}" role="tab" onclick="setDetailsTab('${call.id}','vehicles')">Vehicles<span class="details-tab-count">(${call.vehicles.length})</span></div>
+        <div class="details-tab ${activeDTab==='persons' ? 'details-tab-active' : ''}" role="tab" onclick="setDetailsTab('${call.id}','persons')">Persons<span class="details-tab-count">(${call.suspects.length})</span></div>
       </div>
-      <div id="call-vehicles-container" style="display:${vehSectionOpen?'block':'none'}">${singleVehHtml}</div>
+      <div class="details-tab-panel">
 
-      <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;margin-top:16px;" onclick="togglePerSection()">
-        <span>Persons ${call.suspects.length ? '<span style="color:var(--accent);font-size:10px;font-weight:600;">('+call.suspects.length+')</span>' : ''} <span style="color:var(--muted);font-size:11px;">${perSectionOpen ? '▲' : '▼'}</span></span>
-        <button class="btn btn-sm btn-primary" style="font-size:10px;padding:2px 10px;" onclick="event.stopPropagation();addSuspectToCall('${call.id}')">Add</button>
+        <!-- Comments tab -->
+        <div style="display:${activeDTab==='comments' ? 'block' : 'none'};">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <span style="font-size:10px;color:var(--muted);font-weight:400;">Use &lt;text&gt; to bold</span>
+          </div>
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;max-height:200px;overflow-y:auto;margin-bottom:8px;" id="narrative-feed-${call.id}">
+            ${formatNarrative(call.comments, false) || '<div style="color:var(--muted);font-style:italic;font-size:13px;padding:8px 0;">No log entries yet.</div>'}
+          </div>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="narrative-append-input-${call.id}" tabindex="3" placeholder="Append note to log... (Enter to save)" style="margin-bottom:0;flex:1;" onkeydown="if(event.key==='Enter'){appendNarrativeEntry('${call.id}',this.value);this.value='';}">
+          </div>
+        </div>
+
+        <!-- Vehicles tab -->
+        <div style="display:${activeDTab==='vehicles' ? 'block' : 'none'};">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+            <button class="btn btn-sm btn-primary" style="font-size:10px;padding:2px 10px;" onclick="addVehicleToCall('${call.id}')">Add Vehicle</button>
+          </div>
+          <div id="call-vehicles-container">${singleVehHtml}</div>
+        </div>
+
+        <!-- Persons tab -->
+        <div style="display:${activeDTab==='persons' ? 'block' : 'none'};">
+          <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+            <button class="btn btn-sm btn-primary" style="font-size:10px;padding:2px 10px;" onclick="addSuspectToCall('${call.id}')">Add Person</button>
+          </div>
+          <div id="call-suspects-container">${singlePerHtml}</div>
+        </div>
+
       </div>
-      <div id="call-suspects-container" style="display:${perSectionOpen?'block':'none'}">${singlePerHtml}</div>
 
+      <!-- ── Section 5: Incident Resolution ── -->
       <div class="section-title" style="margin-top:16px;">Incident Resolution</div>
       <div style="display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap;">
         <select id="close-disp-${call.id}" style="flex:2; min-width:160px; margin-bottom:0;">
@@ -5007,14 +5172,16 @@ function dispatchProfileSplitViewRenderer() {
         <button class="btn btn-danger" onclick="promptCloseCall('${call.id}')">Close Call</button>
       </div>
     `;
-    // Scroll narrative feed to bottom, then focus the narrative input
+    // Scroll narrative feed to bottom, then focus the narrative input (only meaningful while the Comments tab is active)
     var nf = document.getElementById('narrative-feed-' + call.id);
     if (nf) nf.scrollTop = nf.scrollHeight;
-    // Auto-focus narrative input so dispatcher can type immediately
-    var narrativeInput = document.getElementById('narrative-append-input-' + call.id);
-    if (narrativeInput) {
-      // Use setTimeout to ensure DOM is fully painted before focusing
-      setTimeout(function() { narrativeInput.focus(); }, 0);
+    // Auto-focus narrative input so dispatcher can type immediately, but only if the Comments tab is the one showing
+    if (activeDTab === 'comments') {
+      var narrativeInput = document.getElementById('narrative-append-input-' + call.id);
+      if (narrativeInput) {
+        // Use setTimeout to ensure DOM is fully painted before focusing
+        setTimeout(function() { narrativeInput.focus(); }, 0);
+      }
     }
   }
 }
@@ -5029,9 +5196,20 @@ function openUnitProfile(id) {
 function openCallProfile(id) {
   state.selectedCallId = id;
   state.activeProfileView = 'CALL';
+  detailsTab[id] = 'comments';
   // Pan the map to this call's postal (silent bail if no valid postal)
   mapItFromCardSelect(id);
   renderCAD();
+  // Scroll the selected row into view in the incidents table
+  requestAnimationFrame(function() {
+    var rows = document.querySelectorAll('.incidents-table tbody tr.incident-row');
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].classList.contains('selected-call')) {
+        rows[i].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        break;
+      }
+    }
+  });
 }
 function closeProfileViewer() { state.activeProfileView = null; renderCAD(); }
 
@@ -5068,9 +5246,13 @@ function appendNarrativeEntry(callId, text) {
   var feed = document.getElementById('narrative-feed-' + callId);
   if (feed) { feed.innerHTML = formatNarrative(call.comments, false); feed.scrollTop = feed.scrollHeight; }
   saveState();
-  // Update the incident stack card log preview without a full re-render
-  var cardLog = document.querySelector('[data-call-log="' + callId + '"]');
-  if (cardLog) cardLog.innerHTML = formatNarrative(call.comments, true);
+  // Update the Incident Overview row's condensed narrative preview to match
+  // (kept in sync with the same builder used at full render time)
+  var overviewNarrative = document.querySelector('[data-overview-narrative="' + callId + '"]');
+  if (overviewNarrative) {
+    var condensed = buildHoverNarrative(call.comments);
+    overviewNarrative.innerHTML = condensed || '<span style="font-size:10px;color:var(--muted);font-style:italic;">No log entries yet</span>';
+  }
   // Restore focus to the input so the user can keep typing
   var inp = document.getElementById('narrative-append-input-' + callId);
   if (inp) inp.focus();
@@ -5151,7 +5333,7 @@ function createNewIncident() {
     dept: callDeptFilter !== 'ALL' ? callDeptFilter : 'Law', comments: '', assigned: [], vehicles: [], suspects: [],
     status: 'active', disposition: null, closedAt: null
   });
-  state.selectedCallId = newId; state.activeProfileView = 'CALL';
+  state.selectedCallId = newId; state.activeProfileView = 'CALL'; detailsTab[newId] = 'comments';
   renderCAD(); toast(`Incident Log Frame #${newId} built empty. Fill in details.`);
 }
 
@@ -5531,6 +5713,7 @@ function createIncidentFromMap(data) {
   });
   state.selectedCallId = newId;
   state.activeProfileView = 'CALL';
+  detailsTab[newId] = 'comments';
   forceIncidentsTabActive();
   renderCAD();
   bringCADToFront();
@@ -5545,6 +5728,7 @@ function viewCallFromMap(callId) {
   }
   state.selectedCallId = callId;
   state.activeProfileView = 'CALL';
+  detailsTab[callId] = 'comments';
   forceIncidentsTabActive();
   renderCAD();
   bringCADToFront();
