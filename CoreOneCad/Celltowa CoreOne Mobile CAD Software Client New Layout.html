@@ -1305,6 +1305,44 @@
     animation: cadFocusFlash 1.1s ease-out;
   }
 
+/* ==========================================================================
+     GLOBAL SCROLLBAR OVERRIDES (Electron / WebKit)
+     ========================================================================== */
+  
+  /* 1. The Scrollbar Container */
+  ::-webkit-scrollbar {
+      width: 6px;  /* Vertical scrollbar width */
+      height: 6px; /* Horizontal scrollbar height */
+  }
+  
+  /* 2. The Track (The background the thumb slides on) */
+  ::-webkit-scrollbar-track {
+      background: transparent; /* Keeps the track invisible so it doesn't break your dark panels */
+      border-radius: 4px;
+  }
+  
+  /* 3. The Thumb (The draggable part) */
+  ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.1); /* Very subtle, low-profile gray */
+      border-radius: 4px;
+  }
+  
+  /* 4. The Thumb on Hover */
+  ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.25); /* Brightens slightly so the user knows they grabbed it */
+  }
+  
+  /* 5. The Corner (Where horizontal and vertical meet) */
+  ::-webkit-scrollbar-corner {
+      background: transparent;
+  }
+  
+  /* Optional standard fallback for Firefox */
+  * {
+      scrollbar-width: thin; 
+      scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+  }
+
 </style>
 </head>
 <body>
