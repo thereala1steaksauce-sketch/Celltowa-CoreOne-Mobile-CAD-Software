@@ -6,37 +6,45 @@
         body, html { margin: 0; padding: 0; height: 100%; }
         #map { height: 100vh; width: 100%; background: #000; }
 
+        :root {
+            --accent: #0b84ff;
+        }
         #postal-search {
             position: absolute;
-            top: 12px;
-            left: 50px;
+            bottom: 28px;
+            left: 12px;
             z-index: 1000;
-            background: rgba(20, 20, 20, 0.85);
+            background: rgba(13, 17, 23, 0.93);
             padding: 10px 12px;
             border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.5);
             font-family: Arial, sans-serif;
+            width: 460px;
         }
         #postal-search input {
-            width: 90px;
-            padding: 6px 8px;
-            border: none;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 6px 10px;
+            background: #161b22;
+            border: 1px solid #30363d;
             border-radius: 4px;
-            font-size: 14px;
+            font-size: 13px;
+            color: #e6edf3;
+            outline: none;
         }
-        #postal-search button {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 4px;
-            background: #2e7d32;
-            color: white;
-            font-size: 14px;
-            cursor: pointer;
-            margin-left: 6px;
+        #postal-search input:focus {
+            border-color: var(--accent);
         }
-        #postal-search button:hover { background: #388e3c; }
+        #postal-search input::placeholder { color: #8b949e; }
+        /* locationSearch.js builds items inline with no explicit color — force white */
+        #location-dropdown .location-item { color: #e6edf3; }
+        #location-dropdown .location-item span:first-child {
+            white-space: normal !important;
+            word-break: break-word;
+            line-height: 1.4;
+        }
         #postal-status {
-            color: #eee;
+            color: #8b949e;
             font-size: 12px;
             margin-top: 6px;
             min-height: 14px;
@@ -68,8 +76,16 @@
 <body>
     <div id="map"></div>
     <div id="postal-search">
-        <input type="text" id="postal-input" placeholder="e.g. 041" maxlength="3" />
-        <button id="postal-go">Go</button>
+        <div style="position:relative;">
+            <input type="text" id="postal-input" autocomplete="off"
+                placeholder="Search by postal, road, landmark, area…"
+                oninput="locationTypeSearch(this)"
+                onkeydown="locationKey(event)"
+                onfocus="locationTypeSearch(this)"
+                onblur="setTimeout(function(){ var d=document.getElementById('location-dropdown'); if(d) d.style.display='none'; }, 150)" />
+            <div id="location-dropdown"
+                style="display:none;position:absolute;left:0;right:0;bottom:calc(100% + 2px);background:#0d1117;border:1px solid var(--accent);border-radius:6px;z-index:500;max-height:220px;overflow-y:auto;box-shadow:0 -8px 24px rgba(0,0,0,0.7);"></div>
+        </div>
         <div id="postal-status"></div>
     </div>
     <div id="map-context-menu" class="hidden">
@@ -112,7 +128,26 @@
         }
     </style>
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="../CoreOneCad/assets/data/locations.js"></script>
+    <script src="../CoreOneCad/js/locationSearch.js"></script>
     <script>
+    // ── Map-side onLocationSelected ──────────────────────────────────────────
+    // Mirrors window.onLocationSelected in the CAD, but instead of saving to a
+    // call profile it resolves the postal to map coordinates and navigates there.
+    // locationSearch.js calls this after the dispatcher picks a result.
+    window.onLocationSelected = function(loc) {
+        if (!loc) return;
+        var input = document.getElementById('postal-input');
+        if (input) {
+            input.value = formatLocationLabel(loc);
+        }
+        // Resolve postal → coordinates using the existing goToPostal path.
+        // loc.postal is the raw postal string from locations.js (e.g. "041").
+        if (loc.postal) {
+            goToPostal(String(loc.postal));
+        }
+    };
+    
     // Initialize the map only once
     const map = L.map('map', {
         crs: L.CRS.Simple,
@@ -180,7 +215,7 @@
         'in the area': { bg: 'rgba(201,152,107,0.15)', fg: '#7f5a25' },
         'staging': { bg: 'rgba(255,184,108,0.15)', fg: '#734f25' },
         'on scene': { bg: 'rgba(255,85,85,0.16)', fg: '#661015' },
-        'on scene ok': { bg: 'rgba(255,255,255,0.12)', fg: '#f8f8f2' },
+        'on scene ok':  { bg: 'rgba(80,250,123,0.14)', fg: '#0f172a' },
         'transporting': { bg: 'rgba(241,250,140,0.15)', fg: '#706800' },
         'transport complete': { bg: 'rgba(80,250,123,0.14)', fg: '#0f172a' },
         'administrative': { bg: 'rgba(98,114,164,0.14)', fg: '#eff2ff' },
@@ -500,10 +535,14 @@
 
     function goToPostal(rawCode) {
         const statusEl = document.getElementById('postal-status');
-        const code = rawCode.trim().padStart(3, '0');
+        // Accept both a bare postal code ("041") and a full location label
+        // produced by formatLocationLabel ("041 U.S. Route 13 • Sandy Shores").
+        // The postal code is always the first whitespace-delimited token.
+        const token = String(rawCode).trim().split(/\s+/)[0];
+        const code = token.padStart(3, '0');
         const entry = POSTAL_LOOKUP[code];
         if (!entry) {
-            statusEl.textContent = `Postal "${rawCode}" not found.`;
+            if (statusEl) statusEl.textContent = `Postal "${rawCode}" not found.`;
             return;
         }
         const [px, py] = worldToPixel(entry.x, entry.y);
@@ -517,15 +556,28 @@
             .openPopup();
 
         map.flyTo(latlng, 1, { duration: 0.8 });
-        statusEl.textContent = `Found postal ${entry.code}.`;
+
+        // Update the search field to show the location name when the CAD
+        // pushes a postal (e.g. selecting a call on the incident board).
+        const inputEl = document.getElementById('postal-input');
+        if (inputEl) {
+            var label = code;
+            if (typeof LOCATIONS !== 'undefined' && LOCATIONS.length) {
+                var match = LOCATIONS.find(function(l) { return String(l.postal) === code; });
+                if (match && typeof formatLocationLabel === 'function') {
+                    label = formatLocationLabel(match);
+                }
+            }
+            inputEl.value = label;
+        }
+
+        if (statusEl) statusEl.textContent = `Found postal ${entry.code}.`;
     }
 
-    document.getElementById('postal-go').addEventListener('click', () => {
-        goToPostal(document.getElementById('postal-input').value);
-    });
-    document.getElementById('postal-input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') goToPostal(document.getElementById('postal-input').value);
-    });
+    // postal-input Enter key is now handled by locationKey() (from locationSearch.js).
+    // Keeping a fallback for direct 3-digit postal entry so existing ?postal= deep
+    // links and message-driven goToPostal() calls continue to work unchanged.
+    
 
     map.on('contextmenu', handleMapContextMenu);
     map.on('click', hideMapContextMenu);
