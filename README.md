@@ -5,5 +5,6 @@ CoreOne CAD is a client-side, browser-based premium Computer-Aided Dispatch for 
 Written by Claude AI, Google Gemini, and ChatGPT. 
 
 Download the latest version and try it out for yourself!
-<img width="2559" height="1599" alt="image" src="https://github.com/user-attachments/assets/15ec62ea-af7e-4b9d-b591-820e3126c54e" />
-<img width="1076" height="1750" alt="image" src="https://github.com/user-attachments/assets/359a8485-11ed-4dc8-81b5-d7647f9b08ac" />
+
+<img width="1079" height="1919" alt="image" src="https://github.com/user-attachments/assets/17e3318b-eb35-4ce6-a0bb-a842bbb2bcfb" />
+<img width="2558" height="1599" alt="image" src="https://github.com/user-attachments/assets/27027ccf-98a7-4e8b-8edb-2fb7623bac44" />
